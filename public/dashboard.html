@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>กล่องยาของฉัน - ระบบกล่องแจ้งเตือนการรับประทานยา</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation Header -->
+  <nav class="navbar navbar-expand-lg navbar-custom">
+    <div class="container-fluid">
+      <a class="navbar-brand-custom" href="/dashboard.html">
+        <div class="brand-icon">
+          <i class="bi bi-box-seam-fill"></i>
+        </div>
+        <span>กล่องแจ้งเตือนยา</span>
+      </a>
+
+      <div class="d-flex align-items-center gap-3">
+        <div class="dropdown">
+          <button class="btn btn-outline-custom dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-person-circle fs-5 text-primary"></i>
+            <span id="userDisplayName">ผู้ดูแลผู้ป่วย</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+            <li><a class="dropdown-item" href="/profile.html"><i class="bi bi-person me-2"></i>โปรไฟล์</a></li>
+            <li><a class="dropdown-item" href="/history.html"><i class="bi bi-clock-history me-2"></i>ประวัติการหยิบยา</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-2"></i>ออกจากระบบ</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <div class="container py-4">
+    <!-- Sub Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+      <div>
+        <h4 class="fw-bold mb-1">กล่องยาของฉัน</h4>
+        <p class="text-muted small mb-0">จัดการกล่องยาและการตั้งค่าการแจ้งเตือนแบบเรียลไทม์</p>
+      </div>
+
+      <div class="d-flex gap-2">
+        <a href="/history.html" class="btn btn-outline-custom">
+          <i class="bi bi-list-task"></i> ประวัติการหยิบยา
+        </a>
+        <a href="/add-box.html" class="btn btn-primary-custom">
+          <i class="bi bi-plus-lg me-1"></i> เพิ่มกล่องยา
+        </a>
+        <a href="/verify-device.html" class="btn btn-secondary-custom">
+          <i class="bi bi-qr-code-scan me-1"></i> ตรวจสอบ Serial อุปกรณ์
+        </a>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="card card-custom p-5 text-center d-none">
+      <div class="mb-3">
+        <i class="bi bi-box-seam text-muted display-4"></i>
+      </div>
+      <h5 class="fw-bold mb-2">ยังไม่มีกล่องยาในระบบของคุณ</h5>
+      <p class="text-muted mb-4">เพิ่มกล่องยาใหม่ หรือผูก Serial Number อุปกรณ์เพื่อเริ่มต้นใช้งาน</p>
+      <div>
+        <a href="/add-box.html" class="btn btn-primary-custom me-2"><i class="bi bi-plus-lg"></i> เพิ่มกล่องยา</a>
+        <a href="/verify-device.html" class="btn btn-outline-custom"><i class="bi bi-qr-code-scan"></i> ผูกอุปกรณ์ด้วย Serial</a>
+      </div>
+    </div>
+
+    <!-- Device List Container -->
+    <div id="deviceContainer" class="row">
+      <!-- Dynamic Devices Loaded Here -->
+    </div>
+  </div>
+
+  <footer>
+    <div class="container text-center">
+      <p class="mb-0">© 2569 โครงงานกล่องแจ้งเตือนการรับประทานยาผ่านเว็บแอปพลิเคชัน | มหาวิทยาลัยนราธิวาสราชนครินทร์</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/bootstrap.bundle.min.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

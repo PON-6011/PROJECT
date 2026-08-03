@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สมัครสมาชิก - ระบบกล่องแจ้งเตือนการรับประทานยา</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-icon">
+          <i class="bi bi-person-plus-fill"></i>
+        </div>
+        <h4 class="fw-bold mb-1">สมัครสมาชิก</h4>
+        <p class="text-muted small">ไม่พลาดทุกเวลากา่รทานยา ดูแลสุขภาพของคุณทุกวัน</p>
+      </div>
+
+      <div id="alertBox" class="d-none"></div>
+
+      <form id="registerForm">
+        <div class="mb-3">
+          <label for="full_name" class="form-label text-muted small fw-medium">ชื่อ - นามสกุล</label>
+          <input type="text" id="full_name" class="form-control form-control-custom" placeholder="เช่น สมชาย ใจดี" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="username" class="form-label text-muted small fw-medium">ชื่อผู้ใช้ (Username)</label>
+          <input type="text" id="username" class="form-control form-control-custom" placeholder="somchai123" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="email" class="form-label text-muted small fw-medium">อีเมล</label>
+          <input type="email" id="email" class="form-control form-control-custom" placeholder="example@email.com" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="password" class="form-label text-muted small fw-medium">รหัสผ่าน</label>
+          <input type="password" id="password" class="form-control form-control-custom" placeholder="อย่างน้อย 6 ตัวอักษร" required>
+        </div>
+
+        <div class="mb-4">
+          <label for="confirmPassword" class="form-label text-muted small fw-medium">ยืนยันรหัสผ่าน</label>
+          <input type="password" id="confirmPassword" class="form-control form-control-custom" placeholder="กรอกรหัสผ่านซ้ำอีกครั้ง" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary-custom w-100 mb-3">
+          <i class="bi bi-check-circle me-1"></i> สมัครสมาชิก
+        </button>
+
+        <div class="text-center mt-3">
+          <span class="text-muted small">เป็นสมาชิกอยู่แล้ว? </span>
+          <a href="/login.html" class="text-primary fw-medium text-decoration-none small">เข้าสู่ระบบ</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  // Handle Login
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const alertBox = document.getElementById('alertBox');
+
+      try {
+        alertBox.className = 'd-none';
+        const res = await API.request('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username, password })
+        });
+
+        API.setToken(res.data.token);
+        API.setUser(res.data.user);
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        alertBox.className = 'alert alert-danger mb-3';
+        alertBox.innerText = err.message;
+      }
+    });
+  }
+
+  // Handle Register
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const full_name = document.getElementById('full_name').value.trim();
+      const username = document.getElementById('username').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      const alertBox = document.getElementById('alertBox');
+
+      if (password !== confirmPassword) {
+        alertBox.className = 'alert alert-danger mb-3';
+        alertBox.innerText = 'รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน';
+        return;
+      }
+
+      try {
+        alertBox.className = 'd-none';
+        const res = await API.request('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ full_name, username, email, password })
+        });
+
+        API.setToken(res.data.token);
+        API.setUser(res.data.user);
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        alertBox.className = 'alert alert-danger mb-3';
+        alertBox.innerText = err.message;
+      }
+    });
+  }
+
+  // Handle Logout
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      API.clearToken();
+      window.location.href = '/login.html';
+    });
+  }
+});

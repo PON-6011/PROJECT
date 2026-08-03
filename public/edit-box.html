@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แก้ไขกล่องยา - ระบบกล่องแจ้งเตือนการรับประทานยา</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-custom">
+    <div class="container-fluid">
+      <a class="navbar-brand-custom" href="/dashboard.html">
+        <div class="brand-icon">
+          <i class="bi bi-box-seam-fill"></i>
+        </div>
+        <span>กล่องแจ้งเตือนยา</span>
+      </a>
+      <a href="/dashboard.html" class="btn btn-outline-custom btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> ย้อนกลับ
+      </a>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card card-custom p-4">
+          <h4 class="fw-bold mb-4"><i class="bi bi-pencil-square text-primary me-2"></i>แก้ไขกล่องยาและตารางเวลา</h4>
+
+          <div id="alertBox" class="d-none"></div>
+
+          <form id="editBoxForm" enctype="multipart/form-data">
+            <input type="hidden" id="box_id_hidden" value="">
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-6 text-center">
+                <label class="form-label fw-medium d-block">รูปภาพปัจจุบัน</label>
+                <img id="current_image" src="/uploads/default_medicine.png" alt="Medicine Image" class="rounded-3 mb-2" style="width: 120px; height: 120px; object-fit: cover; border: 1px solid #E2E8F0;">
+                <input type="file" id="medicine_image" class="form-control form-control-custom" accept="image/*">
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="device_code" class="form-label fw-medium">Serial Number อุปกรณ์</label>
+                  <input type="text" id="device_code" class="form-control form-control-custom bg-light" readonly>
+                </div>
+                <div class="mb-3">
+                  <label for="box_name" class="form-label fw-medium">ชื่อกล่องยา</label>
+                  <input type="text" id="box_name" class="form-control form-control-custom" required>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label for="location" class="form-label fw-medium">สถานที่ตั้ง</label>
+                <input type="text" id="location" class="form-control form-control-custom" required>
+              </div>
+
+              <div class="col-md-6">
+                <label for="medicine_name" class="form-label fw-medium">ชื่อยาที่รับประทาน</label>
+                <input type="text" id="medicine_name" class="form-control form-control-custom" required>
+              </div>
+            </div>
+
+            <!-- Schedule Time Settings Section -->
+            <div class="p-3 bg-light rounded-3 mb-4 border">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-clock me-2"></i>ตั้งเวลาแจ้งเตือน (สูงสุด 4 ช่วงเวลา)</h6>
+                <button type="button" id="addScheduleBtn" class="btn btn-sm btn-outline-custom">
+                  <i class="bi bi-plus-lg"></i> เพิ่มเวลา
+                </button>
+              </div>
+
+              <div id="scheduleContainer">
+                <!-- Dynamic Schedule Rows Loaded Here -->
+              </div>
+            </div>
+
+            <!-- Reminder Repetition Settings -->
+            <div class="p-3 bg-light rounded-3 mb-4 border">
+              <h6 class="fw-bold mb-3 text-primary"><i class="bi bi-arrow-repeat me-2"></i>การเตือนซ้ำ (กรณีไม่หยิบยา)</h6>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="repeat_count" class="form-label small text-muted">จำนวนรอบเตือนซ้ำ</label>
+                  <select id="repeat_count" class="form-select form-control-custom">
+                    <option value="1">1 รอบ</option>
+                    <option value="2">2 รอบ</option>
+                    <option value="3" selected>3 รอบ (ตามข้อกำหนด SRS)</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="repeat_interval_min" class="form-label small text-muted">ระยะเวลาเตือนซ้ำทุกๆ</label>
+                  <select id="repeat_interval_min" class="form-select form-control-custom">
+                    <option value="3">3 นาที</option>
+                    <option value="5" selected>5 นาที (ตามข้อกำหนด SRS)</option>
+                    <option value="10">10 นาที</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Days Selection -->
+            <div class="mb-4">
+              <label class="form-label fw-medium d-block">วันที่ทำการแจ้งเตือน</label>
+              <div class="d-flex flex-wrap gap-3">
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Sun" id="daySun" checked>
+                  <label class="form-check-label" for="daySun">อาทิตย์</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Mon" id="dayMon" checked>
+                  <label class="form-check-label" for="dayMon">จันทร์</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Tue" id="dayTue" checked>
+                  <label class="form-check-label" for="dayTue">อังคาร</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Wed" id="dayWed" checked>
+                  <label class="form-check-label" for="dayWed">พุธ</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Thu" id="dayThu" checked>
+                  <label class="form-check-label" for="dayThu">พฤหัสบดี</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Fri" id="dayFri" checked>
+                  <label class="form-check-label" for="dayFri">ศุกร์</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input day-checkbox" type="checkbox" value="Sat" id="daySat" checked>
+                  <label class="form-check-label" for="daySat">เสาร์</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <a href="/dashboard.html" class="btn btn-outline-custom">ยกเลิก</a>
+              <button type="submit" class="btn btn-primary-custom px-4">
+                <i class="bi bi-save me-1"></i> บันทึกการเปลี่ยนแปลง
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/edit-box.js"></script>
+</body>
+</html>
