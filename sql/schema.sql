@@ -166,8 +166,8 @@ INSERT INTO `schedules` (`schedule_id`, `box_id`, `medicine_name`, `time_slot`, 
 -- Seed Sample Medication Logs
 INSERT INTO `medication_logs` (`box_id`, `schedule_id`, `medicine_name`, `scheduled_time`, `taken_time`, `status`, `created_at`) VALUES
 (1, 1, 'พาราเซตามอล 500 mg', NOW() - INTERVAL 1 DAY, NOW() - INTERVAL 1 DAY, 'Taken', NOW() - INTERVAL 1 DAY),
-(1, 2, 'พาราเซตามอล 500 mg', NOW() - INTERVAL 12 HOUR, NOW() - INTERVAL 11 HOUR 55 MINUTE, 'Taken', NOW() - INTERVAL 12 HOUR),
-(2, 4, 'แอมโลดิพีน 5 mg', NOW() - INTERVAL 2 HOUR, NOW() - INTERVAL 2 HOUR 10 MINUTE, 'Taken', NOW() - INTERVAL 2 HOUR);
+(1, 2, 'พาราเซตามอล 500 mg', NOW() - INTERVAL 12 HOUR, NOW() - INTERVAL '11:55' HOUR_MINUTE, 'Taken', NOW() - INTERVAL 12 HOUR),
+(2, 4, 'แอมโลดิพีน 5 mg', NOW() - INTERVAL 2 HOUR, NOW() - INTERVAL '2:10' HOUR_MINUTE, 'Taken', NOW() - INTERVAL 2 HOUR);
 
 -- Seed Battery Telemetry Logs
 INSERT INTO `battery_logs` (`box_id`, `battery_level`, `recorded_at`) VALUES
