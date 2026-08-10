@@ -86,14 +86,14 @@
                   <select id="repeat_count" class="form-select form-control-custom">
                     <option value="1">1 รอบ</option>
                     <option value="2">2 รอบ</option>
-                    <option value="3" selected>3 รอบ (ตามข้อกำหนด SRS)</option>
+                    <option value="3" selected>3 รอบ</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label for="repeat_interval_min" class="form-label small text-muted">ระยะเวลาเตือนซ้ำทุกๆ</label>
                   <select id="repeat_interval_min" class="form-select form-control-custom">
                     <option value="3">3 นาที</option>
-                    <option value="5" selected>5 นาที (ตามข้อกำหนด SRS)</option>
+                    <option value="5" selected>5 นาที</option>
                     <option value="10">10 นาที</option>
                   </select>
                 </div>
@@ -103,7 +103,19 @@
             <!-- Days Selection -->
             <div class="mb-4">
               <label class="form-label fw-medium d-block">วันที่ทำการแจ้งเตือน</label>
-              <div class="d-flex flex-wrap gap-3">
+              
+              <div class="d-flex gap-4 mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="daySelectionType" id="dayTypeEveryday" value="everyday" checked>
+                  <label class="form-check-label" for="dayTypeEveryday">ทุกวัน (Everyday)</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="daySelectionType" id="dayTypeSpecific" value="specific">
+                  <label class="form-check-label" for="dayTypeSpecific">บางวัน (ระบุวัน)</label>
+                </div>
+              </div>
+
+              <div id="specificDaysContainer" class="d-flex flex-wrap gap-3 d-none p-3 bg-white border rounded">
                 <div class="form-check">
                   <input class="form-check-input day-checkbox" type="checkbox" value="Sun" id="daySun" checked>
                   <label class="form-check-label" for="daySun">อาทิตย์</label>

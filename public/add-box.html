@@ -32,28 +32,35 @@
           <div id="alertBox" class="d-none"></div>
 
           <form id="addBoxForm" enctype="multipart/form-data">
-            <div class="row g-3 mb-4">
-              <div class="col-md-6">
-                <label for="device_code" class="form-label fw-medium">Serial Number อุปกรณ์ (Token)</label>
+            <!-- Step 1: Verify Serial -->
+            <div id="step1Container" class="mb-4">
+              <label for="device_code" class="form-label fw-medium">Serial Number อุปกรณ์ (Token)</label>
+              <div class="input-group">
                 <input type="text" id="device_code" class="form-control form-control-custom text-uppercase" placeholder="เช่น BOX-CEB123" required>
-              </div>
-              <div class="col-md-6">
-                <label for="box_name" class="form-label fw-medium">ชื่อกล่องยา</label>
-                <input type="text" id="box_name" class="form-control form-control-custom" placeholder="เช่น กล่องยาห้องนอน" required value="กล่องยาห้องนอน">
-              </div>
-              <div class="col-md-6">
-                <label for="location" class="form-label fw-medium">สถานที่ตั้ง</label>
-                <input type="text" id="location" class="form-control form-control-custom" placeholder="เช่น ห้องนอน" required value="ห้องนอน">
-              </div>
-              <div class="col-md-6">
-                <label for="medicine_name" class="form-label fw-medium">ชื่อยาที่รับประทาน</label>
-                <input type="text" id="medicine_name" class="form-control form-control-custom" placeholder="เช่น พาราเซตามอล 500 mg" required value="พาราเซตามอล 500 mg">
-              </div>
-              <div class="col-md-12">
-                <label for="medicine_image" class="form-label fw-medium">รูปภาพยา (อัปโหลดรูปภาพ)</label>
-                <input type="file" id="medicine_image" class="form-control form-control-custom" accept="image/*">
+                <button type="button" class="btn btn-primary-custom" id="nextStepBtn">ถัดไป <i class="bi bi-arrow-right"></i></button>
               </div>
             </div>
+
+            <!-- Step 2: Settings (Initially Hidden) -->
+            <div id="step2Container" class="d-none">
+              <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                  <label for="box_name" class="form-label fw-medium">ชื่อกล่องยา</label>
+                  <input type="text" id="box_name" class="form-control form-control-custom" placeholder="เช่น กล่องยาห้องนอน" required>
+                </div>
+                <div class="col-md-4">
+                  <label for="location" class="form-label fw-medium">สถานที่ตั้ง</label>
+                  <input type="text" id="location" class="form-control form-control-custom" placeholder="เช่น ห้องนอน" required>
+                </div>
+                <div class="col-md-4">
+                  <label for="medicine_name" class="form-label fw-medium">ชื่อยาที่รับประทาน</label>
+                  <input type="text" id="medicine_name" class="form-control form-control-custom" placeholder="เช่น พาราเซตามอล 500 mg" required>
+                </div>
+                <div class="col-md-12">
+                  <label for="medicine_image" class="form-label fw-medium">รูปภาพยา (อัปโหลดรูปภาพ)</label>
+                  <input type="file" id="medicine_image" class="form-control form-control-custom" accept="image/*">
+                </div>
+              </div>
 
             <!-- Schedule Time Settings Section -->
             <div class="p-3 bg-light rounded-3 mb-4 border">
@@ -68,7 +75,7 @@
                 <div class="row g-2 align-items-center mb-3 schedule-row" id="schedule_row_1">
                   <div class="col-md-5">
                     <label class="form-label small text-muted">เวลาที่ 1</label>
-                    <input type="time" class="form-control form-control-custom schedule-time" required value="08:00">
+                    <input type="time" class="form-control form-control-custom schedule-time" required>
                   </div>
                   <div class="col-md-5">
                     <label class="form-label small text-muted">ช่วงเวลารับประทาน</label>
@@ -95,14 +102,14 @@
                   <select id="repeat_count" class="form-select form-control-custom">
                     <option value="1">1 รอบ</option>
                     <option value="2">2 รอบ</option>
-                    <option value="3" selected>3 รอบ (สูงสุดตามข้อกำหนด SRS)</option>
+                    <option value="3" selected>3 รอบ</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label for="repeat_interval_min" class="form-label small text-muted">ระยะเวลาเตือนซ้ำทุกๆ</label>
                   <select id="repeat_interval_min" class="form-select form-control-custom">
                     <option value="3">3 นาที</option>
-                    <option value="5" selected>5 นาที (ตามข้อกำหนด SRS)</option>
+                    <option value="5" selected>5 นาที</option>
                     <option value="10">10 นาที</option>
                   </select>
                 </div>
@@ -112,7 +119,19 @@
             <!-- Days Selection -->
             <div class="mb-4">
               <label class="form-label fw-medium d-block">วันที่ทำการแจ้งเตือน</label>
-              <div class="d-flex flex-wrap gap-3">
+              
+              <div class="d-flex gap-4 mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="daySelectionType" id="dayTypeEveryday" value="everyday" checked>
+                  <label class="form-check-label" for="dayTypeEveryday">ทุกวัน (Everyday)</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="daySelectionType" id="dayTypeSpecific" value="specific">
+                  <label class="form-check-label" for="dayTypeSpecific">บางวัน (ระบุวัน)</label>
+                </div>
+              </div>
+
+              <div id="specificDaysContainer" class="d-flex flex-wrap gap-3 d-none p-3 bg-white border rounded">
                 <div class="form-check">
                   <input class="form-check-input day-checkbox" type="checkbox" value="Sun" id="daySun" checked>
                   <label class="form-check-label" for="daySun">อาทิตย์</label>
@@ -144,12 +163,13 @@
               </div>
             </div>
 
-            <div class="d-flex justify-content-end gap-2">
+            <div class="d-flex justify-content-end gap-2" id="formActionsContainer" class="d-none">
               <a href="/dashboard.html" class="btn btn-outline-custom">ยกเลิก</a>
-              <button type="submit" class="btn btn-primary-custom px-4">
+              <button type="submit" class="btn btn-primary-custom px-4" id="submitBtn" class="d-none">
                 <i class="bi bi-save me-1"></i> บันทึกข้อมูล
               </button>
             </div>
+            </div> <!-- End step2Container -->
           </form>
         </div>
       </div>
