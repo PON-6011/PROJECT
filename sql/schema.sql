@@ -146,7 +146,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Password for demo users: "Password123!" (hashed with bcrypt)
 -- ---------------------------------------------------------
 INSERT INTO `users` (`user_id`, `username`, `email`, `password`, `full_name`, `role`) VALUES
-(1, 'admin', 'admin@example.com', '$2a$10$wT8cI5/JpE4V.6a9gE8Pve51cM0OqH6Z28aO5P0/Lh4E0j/O8tCiu', 'ผู้ดูแลระบบสูงสุด', 'admin'),
+(1, 'admin', 'admin@example.com', '$2a$10$zQcAJlybCKh3WleE3zYaVeIKlnCx422IWwLhS3WI9ljLNaII9OwLS', 'ผู้ดูแลระบบสูงสุด', 'admin'),
 (2, 'somchai', 'somchai@example.com', '$2a$10$wT8cI5/JpE4V.6a9gE8Pve51cM0OqH6Z28aO5P0/Lh4E0j/O8tCiu', 'นายสมชาย ใจดี', 'caregiver');
 
 -- Register predefined serial numbers (Devices ready to be bound or already bound)
