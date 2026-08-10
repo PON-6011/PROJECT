@@ -90,8 +90,8 @@ npm start
 
 | บทบาท | Username | Password |
 | :--- | :--- | :--- |
-| **ผู้ดูแลผู้ป่วย (Caregiver)** | `somchai` | `Password123!` |
-| **ผู้ดูแลระบบ (Admin)** | `admin` | `Password123!` |
+| **ผู้ดูแลผู้ป่วย (Caregiver)** | `PON` | `123456` |
+| **ผู้ดูแลระบบ (Admin)** | `admin` | `12345` |
 
 ---
 
