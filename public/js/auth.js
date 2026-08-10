@@ -20,7 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         API.setToken(res.data.token);
         API.setUser(res.data.user);
-        window.location.href = '/dashboard.html';
+
+        // Redirect based on role
+        if (res.data.user.role === 'admin') {
+          window.location.href = '/admin-dashboard.html';
+        } else {
+          window.location.href = '/dashboard.html';
+        }
       } catch (err) {
         alertBox.className = 'alert alert-danger mb-3';
         alertBox.innerText = err.message;

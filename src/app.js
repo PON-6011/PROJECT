@@ -12,6 +12,7 @@ const scheduleRoutes = require('./routes/scheduleRoutes');
 const historyRoutes = require('./routes/historyRoutes');
 const esp32Routes = require('./routes/esp32Routes');
 const auditRoutes = require('./routes/auditRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 const app = express();
@@ -46,6 +47,7 @@ app.use('/api/schedules', scheduleRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/esp32', esp32Routes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

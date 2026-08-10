@@ -6,7 +6,13 @@
   <title>กล่องแจ้งเตือนการรับประทานยา | Medication Box System</title>
   <script>
     if (localStorage.getItem('medbox_jwt_token')) {
-      window.location.href = '/dashboard.html';
+      const userStr = localStorage.getItem('medbox_user_info');
+      const user = userStr ? JSON.parse(userStr) : null;
+      if (user && user.role === 'admin') {
+        window.location.href = '/admin-dashboard.html';
+      } else {
+        window.location.href = '/dashboard.html';
+      }
     } else {
       window.location.href = '/login.html';
     }

@@ -52,6 +52,25 @@ class UserRepository {
     );
     return result.affectedRows > 0;
   }
+
+  async findAllCaregivers() {
+    const [rows] = await pool.query(
+      `SELECT u.user_id, u.username, u.email, u.full_name, u.role, u.created_at, u.updated_at,
+              (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.user_id) AS device_count
+       FROM users u
+       WHERE u.role = 'caregiver'
+       ORDER BY u.created_at DESC`
+    );
+    return rows;
+  }
+
+  async deleteById(userId) {
+    // Unbind devices first (SET user_id = NULL)
+    await pool.query('UPDATE devices SET user_id = NULL WHERE user_id = ?', [userId]);
+    // Delete the user
+    const [result] = await pool.query('DELETE FROM users WHERE user_id = ? AND role = ?', [userId, 'caregiver']);
+    return result.affectedRows > 0;
+  }
 }
 
 module.exports = new UserRepository();
