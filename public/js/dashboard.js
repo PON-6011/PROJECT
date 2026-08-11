@@ -92,8 +92,7 @@ async function loadDashboardDevices() {
               ${scheduleList}
             </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-3 pt-2">
-              <small class="text-muted"><i class="bi bi-clock-history"></i> ${lastSeenText}</small>
+            <div class="d-flex justify-content-end align-items-center mt-3 pt-2">
               <div class="d-flex gap-2">
                 <a href="/edit-box.html?id=${d.box_id}" class="btn btn-sm btn-outline-custom">
                   <i class="bi bi-pencil-square"></i> แก้ไข
