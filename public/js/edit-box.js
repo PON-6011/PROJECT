@@ -111,6 +111,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const repeatCountSelect = document.getElementById('repeat_count');
+  const repeatIntervalContainer = document.getElementById('repeatIntervalContainer');
+  const repeatIntervalSelect = document.getElementById('repeat_interval_min');
+
   document.querySelectorAll('input[name="daySelectionType"]').forEach(radio => {
     radio.addEventListener('change', () => {
       if (document.getElementById('dayTypeSpecific').checked) {
@@ -121,6 +125,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   });
+
+  function updateRepeatIntervalVisibility() {
+    if (repeatCountSelect.value === '1') {
+      repeatIntervalContainer.classList.add('d-none');
+      repeatIntervalSelect.disabled = true;
+    } else {
+      repeatIntervalContainer.classList.remove('d-none');
+      repeatIntervalSelect.disabled = false;
+    }
+  }
+
+  repeatCountSelect.addEventListener('change', updateRepeatIntervalVisibility);
+  updateRepeatIntervalVisibility();
 
   if (editBoxForm) {
     editBoxForm.addEventListener('submit', async (e) => {

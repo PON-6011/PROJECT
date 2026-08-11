@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Days selection toggle
   const dayRadios = document.querySelectorAll('input[name="daySelectionType"]');
   const specificDaysContainer = document.getElementById('specificDaysContainer');
+  const repeatCountSelect = document.getElementById('repeat_count');
+  const repeatIntervalContainer = document.getElementById('repeatIntervalContainer');
+  const repeatIntervalSelect = document.getElementById('repeat_interval_min');
 
   dayRadios.forEach(radio => {
     radio.addEventListener('change', (e) => {
@@ -23,6 +26,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  function updateRepeatIntervalVisibility() {
+    if (repeatCountSelect.value === '1') {
+      repeatIntervalContainer.classList.add('d-none');
+      repeatIntervalSelect.disabled = true;
+    } else {
+      repeatIntervalContainer.classList.remove('d-none');
+      repeatIntervalSelect.disabled = false;
+    }
+  }
+
+  repeatCountSelect.addEventListener('change', updateRepeatIntervalVisibility);
+  updateRepeatIntervalVisibility();
 
   // Step 1 -> Step 2
   if (nextStepBtn) {
