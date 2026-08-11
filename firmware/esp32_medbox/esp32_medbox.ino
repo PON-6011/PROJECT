@@ -284,9 +284,12 @@ void initOLED() {
  */
 void updateOLEDDisplay(int batteryPercent) {
   display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.printf("%s", DEVICE_CODE.c_str());
+  display.setCursor(0, 16);
   display.setTextSize(2);
-  display.setCursor(15, 20);
-  display.printf("Battery\n    %d%%", batteryPercent);
+  display.printf("Battery %d%%", batteryPercent);
   display.display();
 }
 

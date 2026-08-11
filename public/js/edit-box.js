@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.getElementById('box_id_hidden').value = boxId;
+  let rowCounter = 0;
 
   // Load existing details
   try {
@@ -34,15 +35,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load Schedules
     const scheduleRes = await API.request(`/api/schedules/box/${boxId}`);
-    const schedules = scheduleRes.data;
+    const schedules = scheduleRes.data || scheduleRes.schedules || [];
 
     renderSchedules(schedules);
 
   } catch (err) {
     console.error('Error loading device details:', err);
   }
-
-  let rowCounter = 0;
 
   function renderSchedules(schedules) {
     scheduleContainer.innerHTML = '';
@@ -52,10 +51,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     schedules.forEach(s => {
-      addScheduleRow(s.time_slot, s.meal_timing);
+      const timeValue = s.time_slot || s.time || '08:00:00';
+      const mealValue = s.meal_timing || 'before_meal';
+      addScheduleRow(timeValue, mealValue);
+
       // Pre-fill repetition rules from first schedule item
-      if (s.repeat_count) document.getElementById('repeat_count').value = s.repeat_count;
-      if (s.repeat_interval_min) document.getElementById('repeat_interval_min').value = s.repeat_interval_min;
+      if (s.repeat_count !== undefined && s.repeat_count !== null) {
+        document.getElementById('repeat_count').value = s.repeat_count;
+      }
+      if (s.repeat_interval_min !== undefined && s.repeat_interval_min !== null) {
+        document.getElementById('repeat_interval_min').value = s.repeat_interval_min;
+      }
+
+      if (s.repeat_day && s.repeat_day !== 'Everyday') {
+        document.getElementById('dayTypeSpecific').checked = true;
+        document.getElementById('specificDaysContainer').classList.remove('d-none');
+        const selectedDays = s.repeat_day.split(',');
+        document.querySelectorAll('.day-checkbox').forEach(cb => {
+          cb.checked = selectedDays.includes(cb.value);
+        });
+      }
     });
   }
 
@@ -95,6 +110,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       addScheduleRow('12:00:00', 'after_meal');
     });
   }
+
+  document.querySelectorAll('input[name="daySelectionType"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (document.getElementById('dayTypeSpecific').checked) {
+        document.getElementById('specificDaysContainer').classList.remove('d-none');
+      } else {
+        document.getElementById('specificDaysContainer').classList.add('d-none');
+        document.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = true);
+      }
+    });
+  });
 
   if (editBoxForm) {
     editBoxForm.addEventListener('submit', async (e) => {
