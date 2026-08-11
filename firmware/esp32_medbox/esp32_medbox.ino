@@ -7,8 +7,8 @@
  * Hardware Pinout Mapping:
  * - GPIO14: Active Buzzer (Reminder Sound)
  * - GPIO15: Yellow LED (Before Meal Indicator)
- * - GPIO25: Green LED (After Meal Indicator)
- * - GPIO32: Red LED (Alert status, stays on until bottle removal)
+ * - GPIO32: Green LED (After Meal Indicator)
+ * - GPIO25: Red LED (Alert status, stays on until bottle removal)
  * - GPIO27: Reed Switch Sensor (Detect Bottle Removal)
  * - GPIO19: Push Button Switch (Stop Buzzer Sound)
  * - GPIO21: OLED I2C SDA
@@ -42,8 +42,8 @@ String DEVICE_CODE = ""; // Initialized at runtime
 // Pin Definitions
 #define PIN_BUZZER        14
 #define PIN_LED_YELLOW    15 // Before Meal
-#define PIN_LED_GREEN     25 // After Meal
-#define PIN_LED_RED       32 // Red alert LED (on until bottle removal)
+#define PIN_LED_GREEN     32 // After Meal
+#define PIN_LED_RED       25 // Red alert LED (on until bottle removal)
 #define PIN_REED_SWITCH   27 // Magnet sensor
 #define PIN_PUSH_BUTTON   19 // Silence button
 #define PIN_BATTERY_ADC   34 // Voltage divider ADC
@@ -634,12 +634,12 @@ void triggerAlert(int scheduleIdx) {
   // Play Active Buzzer (GPIO14)
   digitalWrite(PIN_BUZZER, HIGH);
 
-  // Turn ON Red alert LED (GPIO32) and keep it ON until bottle removal.
+  // Turn ON Red alert LED (GPIO25) and keep it ON until bottle removal.
   digitalWrite(PIN_LED_RED, HIGH);
 
   // Meal Timing LED Logic according to SRS:
   // Before Meal -> Yellow LED (GPIO15)
-  // After Meal  -> Green LED (GPIO25)
+  // After Meal  -> Green LED (GPIO32)
   if (isBeforeMealTiming(localSchedules[scheduleIdx].meal_timing)) {
     digitalWrite(PIN_LED_YELLOW, HIGH);
     digitalWrite(PIN_LED_GREEN, LOW);
