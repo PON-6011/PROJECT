@@ -67,7 +67,7 @@ struct ScheduleItem {
 
 ScheduleItem localSchedules[4];
 int scheduleCount = 0;
-long currentScheduleVersion = 0;
+int64_t currentScheduleVersion = 0;
 
 int currentBatteryLevel = 85;
 bool isAlertActive = false;
@@ -385,9 +385,10 @@ void sendHeartbeat() {
     DeserializationError err = deserializeJson(resp, payload);
     if (!err) {
       // If server returns schedule_version, react to it
-      long srvVer = resp["schedule_version"] | 0L;
+      int64_t srvVer = resp["schedule_version"] | 0LL;
+      Serial.printf("[Heartbeat] Parsed schedule_version=%lld\n", srvVer);
       if (srvVer != 0 && srvVer != currentScheduleVersion) {
-        Serial.printf("[Heartbeat] Server schedule_version=%ld differs from local=%ld. Polling schedule...\n", srvVer, currentScheduleVersion);
+        Serial.printf("[Heartbeat] Server schedule_version=%lld differs from local=%lld. Polling schedule...\n", srvVer, currentScheduleVersion);
         currentScheduleVersion = srvVer;
         pollScheduleFromServer();
       }
@@ -431,7 +432,7 @@ void pollScheduleFromServer() {
     DeserializationError err = deserializeJson(doc, payload);
 
     if (!err) {
-      long newVersion = doc["schedule_version"] | 0L;
+      int64_t newVersion = doc["schedule_version"] | 0LL;
       if (newVersion != currentScheduleVersion) {
         currentScheduleVersion = newVersion;
         scheduleCount = 0;
@@ -450,7 +451,18 @@ void pollScheduleFromServer() {
           }
         }
         Serial.printf("[Schedule] Synchronized %d schedule items.\n", scheduleCount);
+      } else {
+        Serial.printf("[Schedule] schedule_version unchanged (%lld).\n", newVersion);
       }
+    } else {
+      Serial.println("[Schedule] Failed to parse schedule response JSON");
+      Serial.println("[Schedule] Payload:");
+      Serial.println(payload);
+    }
+  } else {
+    Serial.printf("[Schedule] HTTP GET failed with code %d\n", httpCode);
+    if (httpCode < 0) {
+      Serial.println("[Schedule] Connection error (negative HTTP code). Check server reachability and firewall.");
     }
   }
   http.end();
@@ -485,19 +497,28 @@ void uploadIntakeLog(const char* status, int scheduleId) {
 // --------------------------------------------------------------------------------------
 void checkScheduledReminders() {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("[Time] Failed to get local time from NTP/system RTC.");
+    return;
+  }
+
+  if (scheduleCount == 0) {
+    Serial.println("[Schedule] No schedules loaded yet. Waiting for sync from server.");
+  }
 
   // Reset daily trigger state at midnight
   if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
     for (int i = 0; i < scheduleCount; i++) {
       localSchedules[i].triggered_today = false;
     }
+    Serial.println("[Schedule] Daily trigger state reset at midnight.");
   }
 
   // Compare RTC time with schedule times
   for (int i = 0; i < scheduleCount; i++) {
     if (!localSchedules[i].triggered_today) {
       if (timeinfo.tm_hour == localSchedules[i].hour && timeinfo.tm_min == localSchedules[i].minute) {
+        Serial.printf("[Schedule] Time matched schedule %d at %02d:%02d\n", localSchedules[i].schedule_id, timeinfo.tm_hour, timeinfo.tm_min);
         localSchedules[i].triggered_today = true;
         triggerAlert(i);
         break;
