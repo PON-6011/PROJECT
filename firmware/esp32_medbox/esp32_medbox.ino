@@ -32,7 +32,8 @@
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* SERVER_URL    = "http://192.168.1.100:3000"; // Replace with Node.js Server IP
-const char* DEVICE_CODE   = "BOX-CEB123";               // Unique Hardware Serial Number
+// DEVICE_CODE will be generated from ESP32 MAC and stored in Preferences
+String DEVICE_CODE = ""; // Initialized at runtime
 
 // Pin Definitions
 #define PIN_BUZZER        14
@@ -107,6 +108,32 @@ void setup() {
 
   setupHardwarePins();
   initOLED();
+  // Allow long-press on push button at boot to unbind device (clear stored device_code)
+  // Hold the push button (GPIO19) for 5 seconds during boot to clear pairing
+  auto checkFactoryResetButton = []() {
+    if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
+      unsigned long pressedAt = millis();
+      while (digitalRead(PIN_PUSH_BUTTON) == LOW) {
+        if (millis() - pressedAt > 5000) {
+          preferences.begin("medbox", false);
+          preferences.remove("device_code");
+          preferences.end();
+          Serial.println("[FactoryReset] device_code cleared from preferences. Rebooting...");
+          display.clearDisplay();
+          display.setTextSize(1);
+          display.setCursor(0, 0);
+          display.println("Device unbound\nRebooting...");
+          display.display();
+          delay(1000);
+          ESP.restart();
+        }
+        delay(100);
+      }
+    }
+  };
+
+  checkFactoryResetButton();
+  initDeviceCode();
   
   // Read battery percentage and render on OLED immediately
   currentBatteryLevel = readBatteryPercentage();
@@ -118,6 +145,32 @@ void setup() {
 
   // Polling initial schedule
   pollScheduleFromServer();
+}
+
+// Initialize or generate unique device code and persist it
+void initDeviceCode() {
+  preferences.begin("medbox", false);
+  String stored = preferences.getString("device_code", "");
+  if (stored.length() > 0) {
+    DEVICE_CODE = stored;
+  } else {
+    uint64_t mac = ESP.getEfuseMac();
+    uint32_t shortmac = (uint32_t)(mac & 0xFFFFFF);
+    char buf[16];
+    sprintf(buf, "%06X", shortmac);
+    DEVICE_CODE = "BOX-" + String(buf);
+    preferences.putString("device_code", DEVICE_CODE);
+  }
+  Serial.printf("[Device] Device code: %s\n", DEVICE_CODE.c_str());
+  // Show on OLED briefly
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.printf("Device:\n%s", DEVICE_CODE.c_str());
+  display.display();
+  delay(2000);
+  // Restore battery display
+  updateOLEDDisplay(currentBatteryLevel);
 }
 
 // --------------------------------------------------------------------------------------
