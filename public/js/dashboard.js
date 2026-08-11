@@ -45,6 +45,17 @@ async function loadDashboardDevices() {
 
       const lastSeenText = d.last_seen ? new Date(d.last_seen).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'ยังไม่มีข้อมูล';
 
+      const scheduleList = (d.schedules || []).length > 0
+        ? d.schedules.map(s => {
+            const timeStr = s.time_slot ? s.time_slot.substring(0, 5) : '??:??';
+            const repeats = s.repeat_count != null ? `${s.repeat_count} รอบ` : '-';
+            return `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                      <span class="text-dark">${timeStr}</span>
+                      <small class="text-muted">${repeats}</small>
+                    </div>`;
+          }).join('')
+        : '<div class="text-center text-muted py-2">ยังไม่ตั้งค่า</div>';
+
       return `
         <div class="col-md-6 col-lg-4 mb-4">
           <div class="card card-custom h-100 p-3">
@@ -73,19 +84,16 @@ async function loadDashboardDevices() {
               </div>
             </div>
 
-            <div class="row g-2 text-center my-2 py-2 border-top border-bottom">
-              <div class="col-6 border-end">
-                <small class="text-muted d-block">เวลาแจ้งเตือนถัดไป</small>
-                <span class="fw-bold text-success fs-6">${d.next_reminder ? d.next_reminder.substring(0, 5) + ' น.' : 'ยังไม่ตั้งค่า'}</span>
+            <div class="mb-3 py-2 border-top border-bottom">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted">เวลาที่ตั้งไว้</small>
+                <small class="text-muted">จำนวนรอบ</small>
               </div>
-              <div class="col-6">
-                <small class="text-muted d-block">จำนวนการเตือน/วัน</small>
-                <span class="fw-bold text-dark fs-6">${d.reminder_count || 0} รอบ</span>
-              </div>
+              ${scheduleList}
             </div>
 
             <div class="d-flex justify-content-between align-items-center mt-3 pt-2">
-              <small class="text-muted"><i class="bi bi-clock-history"></i> ล่าสุด: ${lastSeenText}</small>
+              <small class="text-muted"><i class="bi bi-clock-history"></i> ${lastSeenText}</small>
               <div class="d-flex gap-2">
                 <a href="/edit-box.html?id=${d.box_id}" class="btn btn-sm btn-outline-custom">
                   <i class="bi bi-pencil-square"></i> แก้ไข

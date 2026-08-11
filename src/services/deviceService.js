@@ -7,14 +7,24 @@ class DeviceService {
     const devices = await deviceRepository.findByUserId(userId);
     const now = new Date();
 
-    // Dynamically calculate Online/Offline status based on last_seen (threshold 90 seconds)
-    return devices.map(d => {
+    const devicesWithSchedules = await Promise.all(devices.map(async d => {
       const isRecent = d.last_seen && (now - new Date(d.last_seen)) < 90000;
+      const schedules = await scheduleRepository.findByBoxId(d.box_id);
       return {
         ...d,
-        status: isRecent ? 'Online' : 'Offline'
+        status: isRecent ? 'Online' : 'Offline',
+        schedules: schedules.map(s => ({
+          schedule_id: s.schedule_id,
+          time_slot: s.time_slot,
+          meal_timing: s.meal_timing,
+          repeat_day: s.repeat_day,
+          repeat_count: s.repeat_count,
+          repeat_interval_min: s.repeat_interval_min
+        }))
       };
-    });
+    }));
+
+    return devicesWithSchedules;
   }
 
   async verifyAndPairDevice(userId, deviceCode, boxName, location, medicineName, medicineImage, ipAddress) {
