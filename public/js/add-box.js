@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <label class="form-label small text-muted">ช่วงเวลารับประทาน</label>
             <select class="form-select form-control-custom schedule-meal">
               <option value="before_meal">ก่อนอาหาร (ไฟสีเหลือง)</option>
-              <option value="after_meal" ${suggestIndex % 2 === 0 ? 'selected' : ''}>หลังอาหาร (ไฟสีน้ำเงิน)</option>
+              <option value="after_meal" ${suggestIndex % 2 === 0 ? 'selected' : ''}>หลังอาหาร (ไฟสีเขียว)</option>
             </select>
           </div>
           <div class="col-md-2 text-end pt-4">

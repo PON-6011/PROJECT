@@ -7,8 +7,8 @@
  * Hardware Pinout Mapping:
  * - GPIO14: Active Buzzer (Reminder Sound)
  * - GPIO15: Yellow LED (Before Meal Indicator)
- * - GPIO25: Blue LED (After Meal Indicator)
- * - GPIO32: Green LED (Waiting for Bottle Removal)
+ * - GPIO25: Green LED (After Meal Indicator)
+ * - GPIO32: Red LED (Alert status, stays on until bottle removal)
  * - GPIO27: Reed Switch Sensor (Detect Bottle Removal)
  * - GPIO19: Push Button Switch (Stop Buzzer Sound)
  * - GPIO21: OLED I2C SDA
@@ -42,8 +42,8 @@ String DEVICE_CODE = ""; // Initialized at runtime
 // Pin Definitions
 #define PIN_BUZZER        14
 #define PIN_LED_YELLOW    15 // Before Meal
-#define PIN_LED_BLUE      25 // After Meal
-#define PIN_LED_GREEN     32 // Waiting for bottle removal
+#define PIN_LED_GREEN     25 // After Meal
+#define PIN_LED_RED       32 // Red alert LED (on until bottle removal)
 #define PIN_REED_SWITCH   27 // Magnet sensor
 #define PIN_PUSH_BUTTON   19 // Silence button
 #define PIN_BATTERY_ADC   34 // Voltage divider ADC
@@ -75,6 +75,7 @@ int64_t currentScheduleVersion = 0;
 
 int currentBatteryLevel = 85;
 bool isAlertActive = false;
+bool isAlertVisualActive = false;
 bool isBuzzerMuted = false;
 int alertRepeatRounds = 0;
 unsigned long lastRepeatTimestamp = 0;
@@ -256,10 +257,13 @@ void loop() {
         lastRepeatTimestamp = now;
         Serial.printf("[Reminder Repeat] Repeat round %d triggered (interval %d min)!\n", alertRepeatRounds, repeatIntervalMin);
       } else {
-        // Exceeded allowed repeats -> mark as Missed
-        stopAlert();
+        // Exceeded allowed repeats -> mark as Missed, but keep the alert LED until bottle removal.
+        isAlertActive = false;
+        isBuzzerMuted = true;
+        isAlertVisualActive = true;
+        digitalWrite(PIN_BUZZER, LOW);
         uploadIntakeLog("Missed", activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
-        Serial.println("[Reminder] Max repeats exceeded -> Marked as Missed");
+        Serial.println("[Reminder] Max repeats exceeded -> Marked as Missed. Alert LED remains until bottle removal.");
       }
     }
   }
@@ -273,17 +277,19 @@ void loop() {
 void setupHardwarePins() {
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_LED_YELLOW, OUTPUT);
-  pinMode(PIN_LED_BLUE, OUTPUT);
   pinMode(PIN_LED_GREEN, OUTPUT);
+  pinMode(PIN_LED_RED, OUTPUT);
 
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_LED_YELLOW, LOW);
-  digitalWrite(PIN_LED_BLUE, LOW);
   digitalWrite(PIN_LED_GREEN, LOW);
+  digitalWrite(PIN_LED_RED, LOW);
 
   pinMode(PIN_REED_SWITCH, INPUT_PULLUP);
   pinMode(PIN_PUSH_BUTTON, INPUT_PULLUP);
   pinMode(PIN_BATTERY_ADC, INPUT);
+
+  lastReedState = digitalRead(PIN_REED_SWITCH);
 }
 
 void initOLED() {
@@ -498,13 +504,24 @@ void uploadIntakeLog(const char* status, int scheduleId) {
     dayOfYear = timeinfo.tm_yday;
   }
 
-  bool sameStatus = strcmp(status, lastHistoryStatus) == 0;
-  bool sameSchedule = scheduleId == lastHistoryScheduleId;
-  bool sameMinute = hasTime && dayOfYear == lastHistoryLogDayOfYear && minuteOfDay == lastHistoryLogMinuteOfDay;
-  if (sameSchedule && sameStatus && sameMinute) {
+  bool duplicateWithinMinute = false;
+  if (hasTime) {
+    duplicateWithinMinute = (dayOfYear == lastHistoryLogDayOfYear && minuteOfDay == lastHistoryLogMinuteOfDay);
+  } else if (lastHistoryLogMillis > 0 && millis() - lastHistoryLogMillis < 60000) {
+    duplicateWithinMinute = true;
+  }
+
+  if (duplicateWithinMinute) {
     Serial.println("[History] Skipping duplicate intake log within the same minute.");
     return;
   }
+
+  lastHistoryLogMillis = millis();
+  lastHistoryScheduleId = scheduleId;
+  strncpy(lastHistoryStatus, status, sizeof(lastHistoryStatus) - 1);
+  lastHistoryStatus[sizeof(lastHistoryStatus) - 1] = '\0';
+  lastHistoryLogMinuteOfDay = minuteOfDay;
+  lastHistoryLogDayOfYear = dayOfYear;
 
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[Offline Log] Action recorded locally. Will sync when Wi-Fi reconnects.");
@@ -527,12 +544,6 @@ void uploadIntakeLog(const char* status, int scheduleId) {
 
   int httpCode = http.POST(jsonBody);
   if (httpCode == HTTP_CODE_OK) {
-    lastHistoryLogMillis = millis();
-    lastHistoryScheduleId = scheduleId;
-    strncpy(lastHistoryStatus, status, sizeof(lastHistoryStatus) - 1);
-    lastHistoryStatus[sizeof(lastHistoryStatus) - 1] = '\0';
-    lastHistoryLogMinuteOfDay = minuteOfDay;
-    lastHistoryLogDayOfYear = dayOfYear;
     Serial.println("[History] Intake log sent successfully.");
   } else {
     Serial.printf("[History] Failed to upload intake log, HTTP code %d\n", httpCode);
@@ -578,6 +589,7 @@ void checkScheduledReminders() {
 
 void triggerAlert(int scheduleIdx) {
   isAlertActive = true;
+  isAlertVisualActive = true;
   isBuzzerMuted = false;
   alertRepeatRounds = 0;
   activeScheduleIndex = scheduleIdx;
@@ -586,18 +598,18 @@ void triggerAlert(int scheduleIdx) {
   // Play Active Buzzer (GPIO14)
   digitalWrite(PIN_BUZZER, HIGH);
 
-  // Turn ON Green LED (GPIO32 - Waiting for bottle removal)
-  digitalWrite(PIN_LED_GREEN, HIGH);
+  // Turn ON Red alert LED (GPIO32) and keep it ON until bottle removal.
+  digitalWrite(PIN_LED_RED, HIGH);
 
   // Meal Timing LED Logic according to SRS:
   // Before Meal -> Yellow LED (GPIO15)
-  // After Meal  -> Blue LED (GPIO25)
+  // After Meal  -> Green LED (GPIO25)
   if (strcmp(localSchedules[scheduleIdx].meal_timing, "before_meal") == 0) {
     digitalWrite(PIN_LED_YELLOW, HIGH);
-    digitalWrite(PIN_LED_BLUE, LOW);
+    digitalWrite(PIN_LED_GREEN, LOW);
   } else {
     digitalWrite(PIN_LED_YELLOW, LOW);
-    digitalWrite(PIN_LED_BLUE, HIGH);
+    digitalWrite(PIN_LED_GREEN, HIGH);
   }
 
   Serial.println("[ALERT TRIGGERED] Visual and Audio alarm started!");
@@ -605,12 +617,13 @@ void triggerAlert(int scheduleIdx) {
 
 void stopAlert() {
   isAlertActive = false;
+  isAlertVisualActive = false;
   isBuzzerMuted = false;
   activeScheduleIndex = -1;
   digitalWrite(PIN_BUZZER, LOW);
-  digitalWrite(PIN_LED_GREEN, LOW);
+  digitalWrite(PIN_LED_RED, LOW);
   digitalWrite(PIN_LED_YELLOW, LOW);
-  digitalWrite(PIN_LED_BLUE, LOW);
+  digitalWrite(PIN_LED_GREEN, LOW);
 }
 
 void checkSensors() {
@@ -632,9 +645,14 @@ void checkSensors() {
     lastReedEventMillis = millis();
     if (isAlertActive) {
       // Scheduled intake completed
+      int currentScheduleId = activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0;
       stopAlert();
-      uploadIntakeLog("Taken", activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
+      uploadIntakeLog("Taken", currentScheduleId);
       Serial.println("[Reed Switch] Bottle removed during alarm -> Status: Taken");
+    } else if (isAlertVisualActive) {
+      // Alert LED remains on after buzzer has stopped (e.g. missed reminder). Clear it now.
+      stopAlert();
+      Serial.println("[Reed Switch] Bottle removed after alert -> Clearing visual alert.");
     } else {
       struct tm timeinfo;
       bool hasTime = getLocalTime(&timeinfo);
