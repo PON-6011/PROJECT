@@ -32,7 +32,11 @@
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* SERVER_URL    = "http://192.168.1.100:3000"; // Replace with Node.js Server IP
-// DEVICE_CODE will be generated from ESP32 MAC and stored in Preferences
+
+// If you want to set the box code manually, put it here.
+// Leave empty to generate from ESP32 MAC address automatically.
+const char* CUSTOM_DEVICE_CODE = "BOX-ABC111"; // e.g. "BOX-ABC123"
+
 String DEVICE_CODE = ""; // Initialized at runtime
 
 // Pin Definitions
@@ -151,7 +155,13 @@ void setup() {
 void initDeviceCode() {
   preferences.begin("medbox", false);
   String stored = preferences.getString("device_code", "");
-  if (stored.length() > 0) {
+
+  if (strlen(CUSTOM_DEVICE_CODE) > 0) {
+    DEVICE_CODE = String(CUSTOM_DEVICE_CODE);
+    if (stored != DEVICE_CODE) {
+      preferences.putString("device_code", DEVICE_CODE);
+    }
+  } else if (stored.length() > 0) {
     DEVICE_CODE = stored;
   } else {
     uint64_t mac = ESP.getEfuseMac();
@@ -161,6 +171,7 @@ void initDeviceCode() {
     DEVICE_CODE = "BOX-" + String(buf);
     preferences.putString("device_code", DEVICE_CODE);
   }
+
   Serial.printf("[Device] Device code: %s\n", DEVICE_CODE.c_str());
   // Show on OLED briefly
   display.clearDisplay();
