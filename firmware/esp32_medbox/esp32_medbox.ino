@@ -107,6 +107,7 @@ void syncTimeNTP();
 void pollScheduleFromServer();
 void sendHeartbeat();
 void checkScheduledReminders();
+bool isBeforeMealTiming(const char* timing);
 void triggerAlert(int scheduleIdx);
 void stopAlert();
 void uploadIntakeLog(const char* status, int scheduleId);
@@ -470,7 +471,13 @@ void pollScheduleFromServer() {
             localSchedules[scheduleCount].schedule_id = s["schedule_id"];
             const char* timeStr = s["time"]; // "08:00:00"
             sscanf(timeStr, "%d:%d", &localSchedules[scheduleCount].hour, &localSchedules[scheduleCount].minute);
-            strncpy(localSchedules[scheduleCount].meal_timing, s["meal_timing"] | "before_meal", 20);
+            const char* rawMealTiming = s["meal_timing"] | "before_meal";
+            if (isBeforeMealTiming(rawMealTiming)) {
+              strncpy(localSchedules[scheduleCount].meal_timing, "before_meal", 20);
+            } else {
+              strncpy(localSchedules[scheduleCount].meal_timing, "after_meal", 20);
+            }
+            localSchedules[scheduleCount].meal_timing[19] = '\0';
             localSchedules[scheduleCount].repeat_count = s["repeat_count"] | 3;
             localSchedules[scheduleCount].repeat_interval_min = s["repeat_interval_min"] | 5;
             localSchedules[scheduleCount].triggered_today = false;
@@ -553,6 +560,32 @@ void uploadIntakeLog(const char* status, int scheduleId) {
   http.end();
 }
 
+bool isBeforeMealTiming(const char* timing) {
+  if (timing == nullptr) return false;
+  char normalized[32];
+  strncpy(normalized, timing, sizeof(normalized) - 1);
+  normalized[sizeof(normalized) - 1] = '\0';
+
+  // Trim leading/trailing whitespace
+  int start = 0;
+  while (normalized[start] && isspace((unsigned char)normalized[start])) start++;
+  int end = strlen(normalized) - 1;
+  while (end >= start && isspace((unsigned char)normalized[end])) {
+    normalized[end] = '\0';
+    end--;
+  }
+
+  for (char* p = normalized + start; *p; p++) {
+    *p = tolower((unsigned char)*p);
+  }
+
+  const char* value = normalized + start;
+  if (strcmp(value, "before_meal") == 0 || strcmp(value, "before") == 0 || strcmp(value, "beforemeal") == 0 || strcmp(value, "ก่อนอาหาร") == 0 || strstr(value, "before") != nullptr) {
+    return true;
+  }
+  return false;
+}
+
 // --------------------------------------------------------------------------------------
 // Alarm Logic & Hardware Sensors
 // --------------------------------------------------------------------------------------
@@ -607,7 +640,7 @@ void triggerAlert(int scheduleIdx) {
   // Meal Timing LED Logic according to SRS:
   // Before Meal -> Yellow LED (GPIO15)
   // After Meal  -> Green LED (GPIO25)
-  if (strcmp(localSchedules[scheduleIdx].meal_timing, "before_meal") == 0) {
+  if (isBeforeMealTiming(localSchedules[scheduleIdx].meal_timing)) {
     digitalWrite(PIN_LED_YELLOW, HIGH);
     digitalWrite(PIN_LED_GREEN, LOW);
   } else {
