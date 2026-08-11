@@ -65,3 +65,30 @@ const API = {
     }
   }
 };
+
+// ESP32 / Device related helpers
+API.getMyDevices = async function() {
+  return await this.request('/api/devices', { method: 'GET' });
+};
+
+API.getDeviceSchedule = async function(deviceCode) {
+  const url = `/api/esp32/schedule?device_code=${encodeURIComponent(deviceCode)}`;
+  return await this.request(url, { method: 'GET', headers: { 'x-device-code': deviceCode } });
+};
+
+API.sendIntakeLog = async function(deviceCode, body) {
+  const url = '/api/esp32/intake';
+  const headers = { 'x-device-code': deviceCode };
+  return await this.request(url, { method: 'POST', headers, body: JSON.stringify(body) });
+};
+
+API.checkFirmware = async function(version) {
+  const url = `/api/esp32/firmware/check?version=${encodeURIComponent(version)}`;
+  return await this.request(url, { method: 'GET' });
+};
+
+API.getDeviceStatus = async function() {
+  // Convenience: reuse getMyDevices and map status field
+  const res = await this.getMyDevices();
+  return res.data || res;
+};
