@@ -20,7 +20,7 @@ class DeviceRepository {
   async findByUserId(userId) {
     const [rows] = await pool.query(
       `SELECT d.*, 
-        (SELECT COUNT(*) FROM schedules s WHERE s.box_id = d.box_id AND s.is_active = 1) AS reminder_count,
+        COALESCE((SELECT SUM(s.repeat_count) FROM schedules s WHERE s.box_id = d.box_id AND s.is_active = 1), 0) AS reminder_count,
         (SELECT time_slot FROM schedules s WHERE s.box_id = d.box_id AND s.is_active = 1 ORDER BY ABS(TIMESTAMPDIFF(SECOND, TIME(NOW()), s.time_slot)) ASC LIMIT 1) AS next_reminder
        FROM devices d 
        WHERE d.user_id = ? 

@@ -389,7 +389,6 @@ void sendHeartbeat() {
       Serial.printf("[Heartbeat] Parsed schedule_version=%lld\n", srvVer);
       if (srvVer != 0 && srvVer != currentScheduleVersion) {
         Serial.printf("[Heartbeat] Server schedule_version=%lld differs from local=%lld. Polling schedule...\n", srvVer, currentScheduleVersion);
-        currentScheduleVersion = srvVer;
         pollScheduleFromServer();
       }
       // Optionally sync server time if provided
