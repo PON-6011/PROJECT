@@ -52,7 +52,7 @@ This document shows how the ESP32 firmware, Node.js server and MariaDB-backed we
   - Edit `firmware/esp32_medbox/esp32_medbox.ino` and set:
     - `WIFI_SSID`, `WIFI_PASSWORD`
     - `SERVER_URL` to `http://HOST:3000`
-    - `DEVICE_CODE` to the device serial found in the web UI
+      - `DEVICE_CODE` is now auto-generated per-device from the ESP32 MAC and stored in flash. The code is shown briefly on the OLED and printed to Serial at boot. If you need to unbind a device to generate a new code, hold the push button (GPIO19) during boot for 5 seconds to clear the stored code (device will reboot and create a new one).
 
 7) Example full URLs (replace HOST and DEVICE_CODE):
 

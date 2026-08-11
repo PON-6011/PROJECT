@@ -206,19 +206,26 @@ void loop() {
   // 4. Sensor Reading (Button & Reed Switch)
   checkSensors();
 
-  // 5. Handle Alert Repetition logic (every 5 mins up to 3 rounds)
-  if (isAlertActive && isBuzzerMuted) {
-    if (now - lastRepeatTimestamp > (5 * 60 * 1000)) {
-      if (alertRepeatRounds < 3) {
+  // 5. Handle Alert Repetition logic using per-schedule repeat settings
+  if (isAlertActive && activeScheduleIndex >= 0) {
+    // Determine interval and max rounds from active schedule (fallbacks)
+    int repeatIntervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
+    int maxRounds = localSchedules[activeScheduleIndex].repeat_count > 0 ? localSchedules[activeScheduleIndex].repeat_count : 3;
+    unsigned long intervalMs = (unsigned long)repeatIntervalMin * 60UL * 1000UL;
+
+    if (now - lastRepeatTimestamp > intervalMs) {
+      if (alertRepeatRounds < maxRounds) {
         alertRepeatRounds++;
+        // Sound the buzzer again regardless of mute state
         isBuzzerMuted = false;
         digitalWrite(PIN_BUZZER, HIGH);
         lastRepeatTimestamp = now;
-        Serial.printf("[Reminder Repeat] Repeat round %d triggered!\n", alertRepeatRounds);
+        Serial.printf("[Reminder Repeat] Repeat round %d triggered (interval %d min)!\n", alertRepeatRounds, repeatIntervalMin);
       } else {
-        // Exceeded 3 rounds of unanswered repeats -> Stop sound & record Missed
+        // Exceeded allowed repeats -> mark as Missed
         stopAlert();
         uploadIntakeLog("Missed", activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
+        Serial.println("[Reminder] Max repeats exceeded -> Marked as Missed");
       }
     }
   }
