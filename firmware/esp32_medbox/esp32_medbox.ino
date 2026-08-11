@@ -80,6 +80,9 @@ int alertRepeatRounds = 0;
 unsigned long lastRepeatTimestamp = 0;
 unsigned long lastHeartbeatTimestamp = 0;
 int activeScheduleIndex = -1;
+unsigned long lastHistoryLogMillis = 0;
+int lastHistoryScheduleId = -1;
+char lastHistoryStatus[32] = "";
 
 // NTP Time Client Settings
 const char* ntpServer = "pool.ntp.org";
@@ -482,6 +485,14 @@ void pollScheduleFromServer() {
 }
 
 void uploadIntakeLog(const char* status, int scheduleId) {
+  unsigned long now = millis();
+  bool sameStatus = strcmp(status, lastHistoryStatus) == 0;
+  bool sameSchedule = scheduleId == lastHistoryScheduleId;
+  if (now - lastHistoryLogMillis < 60000 && sameSchedule && sameStatus) {
+    Serial.println("[History] Skipping duplicate intake log within 60 seconds.");
+    return;
+  }
+
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[Offline Log] Action recorded locally. Will sync when Wi-Fi reconnects.");
     return;
@@ -501,7 +512,17 @@ void uploadIntakeLog(const char* status, int scheduleId) {
   String jsonBody;
   serializeJson(doc, jsonBody);
 
-  http.POST(jsonBody);
+  int httpCode = http.POST(jsonBody);
+  if (httpCode == HTTP_CODE_OK) {
+    lastHistoryLogMillis = now;
+    lastHistoryScheduleId = scheduleId;
+    strncpy(lastHistoryStatus, status, sizeof(lastHistoryStatus) - 1);
+    lastHistoryStatus[sizeof(lastHistoryStatus) - 1] = '\0';
+    Serial.println("[History] Intake log sent successfully.");
+  } else {
+    Serial.printf("[History] Failed to upload intake log, HTTP code %d\n", httpCode);
+  }
+
   http.end();
 }
 
@@ -570,6 +591,7 @@ void triggerAlert(int scheduleIdx) {
 void stopAlert() {
   isAlertActive = false;
   isBuzzerMuted = false;
+  activeScheduleIndex = -1;
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_LED_GREEN, LOW);
   digitalWrite(PIN_LED_YELLOW, LOW);
