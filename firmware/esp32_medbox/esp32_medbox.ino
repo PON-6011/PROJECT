@@ -88,6 +88,7 @@ int lastHistoryLogDayOfYear = -1;
 int lastHistoryLogMinuteOfDay = -1;
 int lastReedState = LOW;
 unsigned long lastReedEventMillis = 0;
+int lastScheduleResetDayOfYear = -1;
 
 // NTP Time Client Settings
 const char* ntpServer = "pool.ntp.org";
@@ -566,12 +567,14 @@ void checkScheduledReminders() {
     Serial.println("[Schedule] No schedules loaded yet. Waiting for sync from server.");
   }
 
-  // Reset daily trigger state at midnight
-  if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
+  // Reset daily trigger state once when the day changes.
+  int currentDay = timeinfo.tm_yday;
+  if (lastScheduleResetDayOfYear != currentDay) {
     for (int i = 0; i < scheduleCount; i++) {
       localSchedules[i].triggered_today = false;
     }
-    Serial.println("[Schedule] Daily trigger state reset at midnight.");
+    lastScheduleResetDayOfYear = currentDay;
+    Serial.printf("[Schedule] Daily trigger state reset for day %d.\n", currentDay);
   }
 
   // Compare RTC time with schedule times
