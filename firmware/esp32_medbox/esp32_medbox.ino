@@ -83,6 +83,8 @@ int activeScheduleIndex = -1;
 unsigned long lastHistoryLogMillis = 0;
 int lastHistoryScheduleId = -1;
 char lastHistoryStatus[32] = "";
+int lastHistoryLogDayOfYear = -1;
+int lastHistoryLogMinuteOfDay = -1;
 int lastReedState = LOW;
 unsigned long lastReedEventMillis = 0;
 
@@ -487,11 +489,20 @@ void pollScheduleFromServer() {
 }
 
 void uploadIntakeLog(const char* status, int scheduleId) {
-  unsigned long now = millis();
+  struct tm timeinfo;
+  bool hasTime = getLocalTime(&timeinfo);
+  int minuteOfDay = -1;
+  int dayOfYear = -1;
+  if (hasTime) {
+    minuteOfDay = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+    dayOfYear = timeinfo.tm_yday;
+  }
+
   bool sameStatus = strcmp(status, lastHistoryStatus) == 0;
   bool sameSchedule = scheduleId == lastHistoryScheduleId;
-  if (now - lastHistoryLogMillis < 60000 && sameSchedule && sameStatus) {
-    Serial.println("[History] Skipping duplicate intake log within 60 seconds.");
+  bool sameMinute = hasTime && dayOfYear == lastHistoryLogDayOfYear && minuteOfDay == lastHistoryLogMinuteOfDay;
+  if (sameSchedule && sameStatus && sameMinute) {
+    Serial.println("[History] Skipping duplicate intake log within the same minute.");
     return;
   }
 
@@ -516,10 +527,12 @@ void uploadIntakeLog(const char* status, int scheduleId) {
 
   int httpCode = http.POST(jsonBody);
   if (httpCode == HTTP_CODE_OK) {
-    lastHistoryLogMillis = now;
+    lastHistoryLogMillis = millis();
     lastHistoryScheduleId = scheduleId;
     strncpy(lastHistoryStatus, status, sizeof(lastHistoryStatus) - 1);
     lastHistoryStatus[sizeof(lastHistoryStatus) - 1] = '\0';
+    lastHistoryLogMinuteOfDay = minuteOfDay;
+    lastHistoryLogDayOfYear = dayOfYear;
     Serial.println("[History] Intake log sent successfully.");
   } else {
     Serial.printf("[History] Failed to upload intake log, HTTP code %d\n", httpCode);
