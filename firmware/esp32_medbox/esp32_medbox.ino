@@ -180,11 +180,27 @@ void loop() {
   unsigned long now = millis();
 
   // 1. Maintain WiFi Reconnection (Seamless Offline / Online Recovery)
+  static unsigned long lastWiFiRetry = 0;
+  static bool wifiPreviouslyConnected = false;
   if (WiFi.status() != WL_CONNECTED) {
-    static unsigned long lastWiFiRetry = 0;
+    if (wifiPreviouslyConnected) {
+      // lost connection
+      wifiPreviouslyConnected = false;
+      Serial.println("[WiFi] Disconnected");
+    }
     if (now - lastWiFiRetry > 10000) {
       lastWiFiRetry = now;
       WiFi.reconnect();
+    }
+  } else {
+    if (!wifiPreviouslyConnected) {
+      // newly connected
+      wifiPreviouslyConnected = true;
+      Serial.println("[WiFi] Connected (detected in loop). Sending immediate heartbeat and polling schedule.");
+      currentBatteryLevel = readBatteryPercentage();
+      updateOLEDDisplay(currentBatteryLevel);
+      sendHeartbeat();
+      pollScheduleFromServer();
     }
   }
 
@@ -323,6 +339,28 @@ void sendHeartbeat() {
   serializeJson(doc, jsonBody);
 
   int httpCode = http.POST(jsonBody);
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    DynamicJsonDocument resp(512);
+    DeserializationError err = deserializeJson(resp, payload);
+    if (!err) {
+      // If server returns schedule_version, react to it
+      long srvVer = resp["schedule_version"] | 0L;
+      if (srvVer != 0 && srvVer != currentScheduleVersion) {
+        Serial.printf("[Heartbeat] Server schedule_version=%ld differs from local=%ld. Polling schedule...\n", srvVer, currentScheduleVersion);
+        currentScheduleVersion = srvVer;
+        pollScheduleFromServer();
+      }
+      // Optionally sync server time if provided
+      const char* srvTime = resp["server_time"] | nullptr;
+      if (srvTime) {
+        // Not setting system time here, but could be used for diagnostics
+        Serial.printf("[Heartbeat] server_time: %s\n", srvTime);
+      }
+    }
+  } else {
+    Serial.printf("[Heartbeat] HTTP error: %d\n", httpCode);
+  }
   http.end();
 }
 
