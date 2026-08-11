@@ -83,6 +83,8 @@ int activeScheduleIndex = -1;
 unsigned long lastHistoryLogMillis = 0;
 int lastHistoryScheduleId = -1;
 char lastHistoryStatus[32] = "";
+int lastReedState = LOW;
+unsigned long lastReedEventMillis = 0;
 
 // NTP Time Client Settings
 const char* ntpServer = "pool.ntp.org";
@@ -612,72 +614,72 @@ void checkSensors() {
   }
 
   // Reed Switch (GPIO27) - Bottle Removal Detection
-  if (digitalRead(PIN_REED_SWITCH) == HIGH) { // Bottle lifted / magnet separated
-    delay(50); // Debounce
-    if (digitalRead(PIN_REED_SWITCH) == HIGH) {
-      if (isAlertActive) {
-        // Scheduled intake completed
-        stopAlert();
-        uploadIntakeLog("Taken", activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
-        Serial.println("[Reed Switch] Bottle removed during alarm -> Status: Taken");
-      } else {
-        struct tm timeinfo;
-        bool hasTime = getLocalTime(&timeinfo);
-        int currentMinutes = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
-        int selectedIdx = -1;
-        bool takenEarly = false;
+  int reedState = digitalRead(PIN_REED_SWITCH);
+  if (reedState == HIGH && lastReedState == LOW && millis() - lastReedEventMillis > 1000) {
+    lastReedEventMillis = millis();
+    if (isAlertActive) {
+      // Scheduled intake completed
+      stopAlert();
+      uploadIntakeLog("Taken", activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
+      Serial.println("[Reed Switch] Bottle removed during alarm -> Status: Taken");
+    } else {
+      struct tm timeinfo;
+      bool hasTime = getLocalTime(&timeinfo);
+      int currentMinutes = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
+      int selectedIdx = -1;
+      bool takenEarly = false;
 
-        if (hasTime && scheduleCount > 0) {
-          int bestPastDiff = 1440;
-          int bestFutureDiff = 1440;
-          int bestPastIdx = -1;
-          int bestFutureIdx = -1;
+      if (hasTime && scheduleCount > 0) {
+        int bestPastDiff = 1440;
+        int bestFutureDiff = 1440;
+        int bestPastIdx = -1;
+        int bestFutureIdx = -1;
 
-          for (int i = 0; i < scheduleCount; i++) {
-            if (localSchedules[i].triggered_today) continue;
-            int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
-            if (scheduleMinutes <= currentMinutes) {
-              int diff = currentMinutes - scheduleMinutes;
-              if (diff < bestPastDiff) {
-                bestPastDiff = diff;
-                bestPastIdx = i;
-              }
-            } else {
-              int diff = scheduleMinutes - currentMinutes;
-              if (diff < bestFutureDiff) {
-                bestFutureDiff = diff;
-                bestFutureIdx = i;
-              }
+        for (int i = 0; i < scheduleCount; i++) {
+          if (localSchedules[i].triggered_today) continue;
+          int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
+          if (scheduleMinutes <= currentMinutes) {
+            int diff = currentMinutes - scheduleMinutes;
+            if (diff < bestPastDiff) {
+              bestPastDiff = diff;
+              bestPastIdx = i;
             }
-          }
-
-          if (bestPastIdx >= 0) {
-            selectedIdx = bestPastIdx;
-            takenEarly = false;
-          } else if (bestFutureIdx >= 0) {
-            selectedIdx = bestFutureIdx;
-            takenEarly = true;
+          } else {
+            int diff = scheduleMinutes - currentMinutes;
+            if (diff < bestFutureDiff) {
+              bestFutureDiff = diff;
+              bestFutureIdx = i;
+            }
           }
         }
 
-        if (selectedIdx >= 0) {
-          localSchedules[selectedIdx].triggered_today = true;
-          if (takenEarly) {
-            uploadIntakeLog("Taken Early", localSchedules[selectedIdx].schedule_id);
-            Serial.println("[Reed Switch] Bottle removed before schedule -> Status: Taken Early");
-          } else {
-            uploadIntakeLog("Taken", localSchedules[selectedIdx].schedule_id);
-            Serial.println("[Reed Switch] Bottle removed at/after schedule -> Status: Taken");
-          }
+        if (bestPastIdx >= 0) {
+          selectedIdx = bestPastIdx;
+          takenEarly = false;
+        } else if (bestFutureIdx >= 0) {
+          selectedIdx = bestFutureIdx;
+          takenEarly = true;
+        }
+      }
+
+      if (selectedIdx >= 0) {
+        localSchedules[selectedIdx].triggered_today = true;
+        if (takenEarly) {
+          uploadIntakeLog("Taken Early", localSchedules[selectedIdx].schedule_id);
+          Serial.println("[Reed Switch] Bottle removed before schedule -> Status: Taken Early");
         } else {
-          static unsigned long lastEarlyLog = 0;
-          if (millis() - lastEarlyLog > 10000) { // Prevent spam
-            lastEarlyLog = millis();
-            uploadIntakeLog("Taken Early", 0);
-            Serial.println("[Reed Switch] Bottle removed before schedule -> Status: Taken Early");
-          }
+          uploadIntakeLog("Taken", localSchedules[selectedIdx].schedule_id);
+          Serial.println("[Reed Switch] Bottle removed at/after schedule -> Status: Taken");
+        }
+      } else {
+        static unsigned long lastEarlyLog = 0;
+        if (millis() - lastEarlyLog > 10000) { // Prevent spam
+          lastEarlyLog = millis();
+          uploadIntakeLog("Taken Early", 0);
+          Serial.println("[Reed Switch] Bottle removed before schedule -> Status: Taken Early");
         }
       }
     }
   }
+  lastReedState = reedState;
 }
