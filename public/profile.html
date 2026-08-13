@@ -60,12 +60,22 @@
 
             <div class="mb-3">
               <label for="new_password" class="form-label text-muted small fw-medium">รหัสผ่านใหม่</label>
-              <input type="password" id="new_password" class="form-control form-control-custom" placeholder="อย่างน้อย 6 ตัวอักษร">
+              <div class="input-group">
+                <input type="password" id="new_password" class="form-control form-control-custom" placeholder="อย่างน้อย 6 ตัวอักษร">
+                <button type="button" class="btn btn-outline-secondary" data-toggle-password="new_password" aria-label="แสดงรหัสผ่าน">
+                  <i class="bi bi-eye-slash"></i>
+                </button>
+              </div>
             </div>
 
             <div class="mb-4">
               <label for="confirm_password" class="form-label text-muted small fw-medium">ยืนยันรหัสผ่านใหม่</label>
-              <input type="password" id="confirm_password" class="form-control form-control-custom" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง">
+              <div class="input-group">
+                <input type="password" id="confirm_password" class="form-control form-control-custom" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง">
+                <button type="button" class="btn btn-outline-secondary" data-toggle-password="confirm_password" aria-label="แสดงรหัสผ่าน">
+                  <i class="bi bi-eye-slash"></i>
+                </button>
+              </div>
             </div>
 
             <div class="d-flex justify-content-end gap-2">

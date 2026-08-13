@@ -2,9 +2,10 @@ const { pool } = require('../config/db');
 
 class UserRepository {
   async findByUsernameOrEmail(identifier) {
+    const normalized = String(identifier || '').trim();
     const [rows] = await pool.query(
-      'SELECT * FROM users WHERE username = ? OR email = ? LIMIT 1',
-      [identifier, identifier]
+      'SELECT * FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1',
+      [normalized, normalized]
     );
     return rows[0] || null;
   }

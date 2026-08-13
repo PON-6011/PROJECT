@@ -30,6 +30,17 @@ class DeviceRepository {
     return rows;
   }
 
+  async findAllForAdmin() {
+    const [rows] = await pool.query(
+      `SELECT d.*, u.user_id AS owner_user_id, u.full_name AS caregiver_name, u.username AS caregiver_username,
+              u.email AS caregiver_email
+       FROM devices d
+       LEFT JOIN users u ON u.user_id = d.user_id
+       ORDER BY d.created_at DESC`
+    );
+    return rows;
+  }
+
   async bindDevice(deviceCode, userId, boxName, location, medicineName, medicineImage) {
     // Check if device already exists in system database
     const existing = await this.findByCode(deviceCode);
@@ -111,6 +122,14 @@ class DeviceRepository {
     const [result] = await pool.query(
       'DELETE FROM devices WHERE box_id = ? AND user_id = ?',
       [boxId, userId]
+    );
+    return result.affectedRows > 0;
+  }
+
+  async deleteDeviceByAdmin(boxId) {
+    const [result] = await pool.query(
+      'DELETE FROM devices WHERE box_id = ?',
+      [boxId]
     );
     return result.affectedRows > 0;
   }

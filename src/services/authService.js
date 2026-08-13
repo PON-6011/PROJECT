@@ -6,12 +6,15 @@ const env = require('../config/env');
 
 class AuthService {
   async register(userData, ipAddress) {
-    const existing = await userRepository.findByUsernameOrEmail(userData.username);
+    const username = String(userData.username || '').trim();
+    const email = String(userData.email || '').trim();
+
+    const existing = await userRepository.findByUsernameOrEmail(username);
     if (existing) {
       throw new Error('ชื่อผู้ใช้นี้มีในระบบแล้ว กรุณาเลือกชื่ออื่น');
     }
 
-    const existingEmail = await userRepository.findByUsernameOrEmail(userData.email);
+    const existingEmail = await userRepository.findByUsernameOrEmail(email);
     if (existingEmail) {
       throw new Error('อีเมลนี้มีในระบบแล้ว กรุณาใช้อีเมลอื่น');
     }
@@ -19,6 +22,8 @@ class AuthService {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
     const userId = await userRepository.create({
       ...userData,
+      username,
+      email,
       password: hashedPassword
     });
 

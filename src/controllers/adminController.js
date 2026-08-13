@@ -37,6 +37,18 @@ class AdminController {
     }
   }
 
+  async getAllDevices(req, res, next) {
+    try {
+      const devices = await adminService.getAllDevices();
+      res.status(200).json({
+        success: true,
+        data: devices
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async deleteUser(req, res, next) {
     try {
       const ipAddress = req.ip || req.connection.remoteAddress;
@@ -46,6 +58,21 @@ class AdminController {
       res.status(200).json({
         success: true,
         message: 'ลบผู้ดูแลออกจากระบบเรียบร้อยแล้ว'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async deleteDevice(req, res, next) {
+    try {
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const boxId = parseInt(req.params.id, 10);
+
+      await adminService.deleteDevice(req.user.userId, boxId, ipAddress);
+      res.status(200).json({
+        success: true,
+        message: 'ลบกล่องยาออกจากระบบเรียบร้อยแล้ว'
       });
     } catch (err) {
       next(err);

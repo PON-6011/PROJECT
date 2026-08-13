@@ -39,12 +39,22 @@
 
         <div class="mb-3">
           <label for="password" class="form-label text-muted small fw-medium">รหัสผ่าน</label>
-          <input type="password" id="password" class="form-control form-control-custom" placeholder="อย่างน้อย 6 ตัวอักษร" required>
+          <div class="input-group">
+            <input type="password" id="password" class="form-control form-control-custom" placeholder="อย่างน้อย 6 ตัวอักษร" required>
+            <button type="button" class="btn btn-outline-secondary" data-toggle-password="password" aria-label="แสดงรหัสผ่าน">
+              <i class="bi bi-eye-slash"></i>
+            </button>
+          </div>
         </div>
 
         <div class="mb-4">
           <label for="confirmPassword" class="form-label text-muted small fw-medium">ยืนยันรหัสผ่าน</label>
-          <input type="password" id="confirmPassword" class="form-control form-control-custom" placeholder="กรอกรหัสผ่านซ้ำอีกครั้ง" required>
+          <div class="input-group">
+            <input type="password" id="confirmPassword" class="form-control form-control-custom" placeholder="กรอกรหัสผ่านซ้ำอีกครั้ง" required>
+            <button type="button" class="btn btn-outline-secondary" data-toggle-password="confirmPassword" aria-label="แสดงรหัสผ่าน">
+              <i class="bi bi-eye-slash"></i>
+            </button>
+          </div>
         </div>
 
         <button type="submit" class="btn btn-primary-custom w-100 mb-3">

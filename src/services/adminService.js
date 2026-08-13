@@ -1,4 +1,5 @@
 const userRepository = require('../repositories/userRepository');
+const deviceRepository = require('../repositories/deviceRepository');
 const historyRepository = require('../repositories/historyRepository');
 const auditRepository = require('../repositories/auditRepository');
 
@@ -34,6 +35,10 @@ class AdminService {
     return await historyRepository.getRecentAdminLogs(25);
   }
 
+  async getAllDevices() {
+    return await deviceRepository.findAllForAdmin();
+  }
+
   async deleteUser(adminUserId, targetUserId, ipAddress) {
     const targetUser = await userRepository.findById(targetUserId);
     if (!targetUser) {
@@ -49,6 +54,27 @@ class AdminService {
     }
 
     await auditRepository.logAction(adminUserId, 'DELETE_USER', `แอดมินลบผู้ดูแล: ${targetUser.username} (ID: ${targetUserId})`, ipAddress);
+    return true;
+  }
+
+  async deleteDevice(adminUserId, boxId, ipAddress) {
+    const device = await deviceRepository.findById(boxId);
+    if (!device) {
+      throw new Error('ไม่พบกล่องยาที่ต้องการลบ');
+    }
+
+    const deleted = await deviceRepository.deleteDeviceByAdmin(boxId);
+    if (!deleted) {
+      throw new Error('ไม่สามารถลบกล่องยาได้ โปรดลองอีกครั้ง');
+    }
+
+    await auditRepository.logAction(
+      adminUserId,
+      'DELETE_DEVICE_ADMIN',
+      `แอดมินลบกล่องยา: ${device.device_code} (${device.box_name}) โดยเจ้าของ: ${device.user_id || 'ไม่มีเจ้าของ'}`,
+      ipAddress
+    );
+
     return true;
   }
 }

@@ -1,4 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-toggle-password]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('data-toggle-password');
+      const input = document.getElementById(targetId);
+      if (!input) return;
+
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      const icon = button.querySelector('i');
+      if (icon) {
+        icon.className = isPassword ? 'bi bi-eye' : 'bi bi-eye-slash';
+      }
+    });
+  });
+
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
   const logoutBtn = document.getElementById('logoutBtn');
