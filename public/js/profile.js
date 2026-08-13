@@ -1,6 +1,31 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('[data-toggle-password]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('data-toggle-password');
+      const input = document.getElementById(targetId);
+      if (!input) return;
+
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      const icon = button.querySelector('i');
+      if (icon) {
+        icon.className = isPassword ? 'bi bi-eye' : 'bi bi-eye-slash';
+      }
+    });
+  });
+
   const profileForm = document.getElementById('profileForm');
   const alertBox = document.getElementById('alertBox');
+  const logoutBtnProfile = document.getElementById('logoutBtnProfile');
+
+  if (logoutBtnProfile) {
+    logoutBtnProfile.addEventListener('click', () => {
+      API.clearToken();
+      const user = API.getUser();
+      const role = user && user.role;
+      window.location.href = role === 'admin' ? '/admin-dashboard.html' : '/dashboard.html';
+    });
+  }
 
   // Load User Data
   try {
