@@ -13,6 +13,30 @@ class AdminController {
     }
   }
 
+  async getOverview(req, res, next) {
+    try {
+      const data = await adminService.getDashboardOverview();
+      res.status(200).json({
+        success: true,
+        data
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getRecentHistory(req, res, next) {
+    try {
+      const logs = await adminService.getRecentHistory();
+      res.status(200).json({
+        success: true,
+        data: logs
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async deleteUser(req, res, next) {
     try {
       const ipAddress = req.ip || req.connection.remoteAddress;

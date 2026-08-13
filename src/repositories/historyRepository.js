@@ -55,6 +55,20 @@ class HistoryRepository {
     );
     return rows;
   }
+
+  async getRecentAdminLogs(limit = 20) {
+    const [rows] = await pool.query(
+      `SELECT ml.*, d.box_name, d.location, d.device_code, u.user_id, u.username, u.full_name AS caregiver_name,
+              u.email
+       FROM medication_logs ml
+       JOIN devices d ON d.box_id = ml.box_id
+       LEFT JOIN users u ON u.user_id = d.user_id
+       ORDER BY ml.taken_time DESC
+       LIMIT ?`,
+      [parseInt(limit, 10)]
+    );
+    return rows;
+  }
 }
 
 module.exports = new HistoryRepository();
