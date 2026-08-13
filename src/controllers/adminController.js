@@ -73,6 +73,38 @@ class AdminController {
     }
   }
 
+  async disableUser(req, res, next) {
+    try {
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const targetUserId = parseInt(req.params.id, 10);
+
+      console.log('[AdminController] disableUser request', { caller: req.user || null, targetUserId, ipAddress });
+
+      await adminService.disableUser(req.user.userId, targetUserId, ipAddress);
+      res.status(200).json({ success: true, message: 'ปิดใช้งานผู้ดูแลเรียบร้อยแล้ว' });
+    } catch (err) {
+      console.error('[AdminController] disableUser error', err && err.message ? err.message : err);
+      const status = err && err.statusCode ? err.statusCode : 400;
+      res.status(status).json({ success: false, message: err && err.message ? err.message : 'เกิดข้อผิดพลาด' });
+    }
+  }
+
+  async unbindUserDevices(req, res, next) {
+    try {
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const targetUserId = parseInt(req.params.id, 10);
+
+      console.log('[AdminController] unbindUserDevices request', { caller: req.user || null, targetUserId, ipAddress });
+
+      await adminService.unbindUserDevices(req.user.userId, targetUserId, ipAddress);
+      res.status(200).json({ success: true, message: 'ยกเลิกการผูกกล่องยาสำเร็จ' });
+    } catch (err) {
+      console.error('[AdminController] unbindUserDevices error', err && err.message ? err.message : err);
+      const status = err && err.statusCode ? err.statusCode : 400;
+      res.status(status).json({ success: false, message: err && err.message ? err.message : 'เกิดข้อผิดพลาด' });
+    }
+  }
+
   async deleteDevice(req, res, next) {
     try {
       const ipAddress = req.ip || req.connection.remoteAddress;

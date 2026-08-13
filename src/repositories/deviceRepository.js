@@ -134,6 +134,14 @@ class DeviceRepository {
     return result.affectedRows > 0;
   }
 
+  async unbindDevicesByUser(userId) {
+    const [result] = await pool.query(
+      'UPDATE devices SET user_id = NULL WHERE user_id = ?',
+      [userId]
+    );
+    return result.affectedRows >= 0;
+  }
+
   async incrementScheduleVersion(boxId) {
     const newVersion = Date.now();
     await pool.query(

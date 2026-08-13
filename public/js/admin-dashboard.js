@@ -106,7 +106,11 @@ function renderUsersTable() {
         <td><span class="badge-box-count">${deviceCount} กล่อง</span></td>
         <td>${createdText}</td>
         <td class="text-end">
-          ${isSelf ? `<button class="btn btn-secondary" disabled title="ไม่สามารถลบบัญชีตัวเองได้">บัญชีของคุณ</button>` : `<button class="btn-delete-user" data-user-id="${user.user_id}" data-user-name="${escapeHtml(user.full_name || user.username)}"><i class="bi bi-trash me-1"></i>ลบ</button>`}
+          ${isSelf ? `<button class="btn btn-secondary" disabled title="ไม่สามารถลบบัญชีตัวเองได้">บัญชีของคุณ</button>` : `
+            <button class="btn btn-sm btn-outline-warning btn-unbind-user" data-user-id="${user.user_id}">ยกเลิกผูก</button>
+            <button class="btn btn-sm btn-outline-secondary btn-disable-user ms-2" data-user-id="${user.user_id}">ปิดใช้งาน</button>
+            <button class="btn-delete-user ms-2" data-user-id="${user.user_id}" data-user-name="${escapeHtml(user.full_name || user.username)}"><i class="bi bi-trash me-1"></i>ลบ</button>
+          `}
         </td>
       </tr>
     `;
@@ -117,6 +121,54 @@ function renderUsersTable() {
       const userId = Number(button.dataset.userId);
       const userName = button.dataset.userName || 'ผู้ดูแล';
       openDeleteUserModal(userId, userName);
+    });
+  });
+
+  tableBody.querySelectorAll('.btn-unbind-user').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const userId = Number(button.dataset.userId);
+      if (!confirm('ต้องการยกเลิกการผูกกล่องยาของผู้ดูแลนี้หรือไม่?')) return;
+      try {
+        button.disabled = true;
+        button.textContent = 'กำลังยกเลิก...';
+        const token = API.getToken();
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`/api/admin/users/${userId}/unbind`, { method: 'POST', headers });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data && data.message ? data.message : `ล้มเหลว (status ${res.status})`);
+        alert(data && data.message ? data.message : 'ยกเลิกผูกสำเร็จ');
+        await loadAdminOverview();
+      } catch (err) {
+        alert(err && err.message ? err.message : 'ยกเลิกผูกไม่สำเร็จ');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'ยกเลิกผูก';
+      }
+    });
+  });
+
+  tableBody.querySelectorAll('.btn-disable-user').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const userId = Number(button.dataset.userId);
+      if (!confirm('ต้องการปิดใช้งานบัญชีผู้ดูแลนี้หรือไม่?')) return;
+      try {
+        button.disabled = true;
+        button.textContent = 'กำลังปิดใช้งาน...';
+        const token = API.getToken();
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`/api/admin/users/${userId}/disable`, { method: 'POST', headers });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data && data.message ? data.message : `ล้มเหลว (status ${res.status})`);
+        alert(data && data.message ? data.message : 'ปิดใช้งานสำเร็จ');
+        await loadAdminOverview();
+      } catch (err) {
+        alert(err && err.message ? err.message : 'ปิดใช้งานไม่สำเร็จ');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'ปิดใช้งาน';
+      }
     });
   });
 }

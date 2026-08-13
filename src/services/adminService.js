@@ -57,6 +57,39 @@ class AdminService {
     return true;
   }
 
+  async disableUser(adminUserId, targetUserId, ipAddress) {
+    const targetUser = await userRepository.findById(targetUserId);
+    if (!targetUser) {
+      throw new Error('ไม่พบผู้ดูแลที่ต้องการปิดใช้งาน');
+    }
+    if (targetUser.role === 'admin') {
+      throw new Error('ไม่สามารถปิดใช้งานบัญชีแอดมินได้');
+    }
+
+    const updated = await userRepository.setRole(targetUserId, 'disabled');
+    if (!updated) {
+      throw new Error('ไม่สามารถปิดใช้งานผู้ดูแลได้ โปรดลองอีกครั้ง');
+    }
+
+    await auditRepository.logAction(adminUserId, 'DISABLE_USER', `แอดมินปิดใช้งานผู้ดูแล: ${targetUser.username} (ID: ${targetUserId})`, ipAddress);
+    return true;
+  }
+
+  async unbindUserDevices(adminUserId, targetUserId, ipAddress) {
+    const targetUser = await userRepository.findById(targetUserId);
+    if (!targetUser) {
+      throw new Error('ไม่พบผู้ใช้งานที่ต้องการยกเลิกผูก');
+    }
+
+    const unbound = await deviceRepository.unbindDevicesByUser(targetUserId);
+    if (!unbound) {
+      throw new Error('ไม่สามารถยกเลิกการผูกกล่องยาได้ โปรดลองอีกครั้ง');
+    }
+
+    await auditRepository.logAction(adminUserId, 'UNBIND_DEVICES', `แอดมินยกเลิกผูกกล่องยาของ: ${targetUser.username} (ID: ${targetUserId})`, ipAddress);
+    return true;
+  }
+
   async deleteDevice(adminUserId, boxId, ipAddress) {
     const device = await deviceRepository.findById(boxId);
     if (!device) {

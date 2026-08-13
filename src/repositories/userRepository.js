@@ -72,6 +72,11 @@ class UserRepository {
     const [result] = await pool.query('DELETE FROM users WHERE user_id = ? AND role = ?', [userId, 'caregiver']);
     return result.affectedRows > 0;
   }
+
+  async setRole(userId, role) {
+    const [result] = await pool.query('UPDATE users SET role = ? WHERE user_id = ? AND role != ?', [role, userId, 'admin']);
+    return result.affectedRows > 0;
+  }
 }
 
 module.exports = new UserRepository();
