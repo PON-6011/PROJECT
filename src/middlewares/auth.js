@@ -1,10 +1,11 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const userRepository = require('../repositories/userRepository');
 
 /**
  * Middleware to verify JWT token in Authorization header
  */
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -15,15 +16,32 @@ function authenticateToken(req, res, next) {
     });
   }
 
-  jwt.verify(token, env.jwt.secret, (err, user) => {
+  jwt.verify(token, env.jwt.secret, async (err, payload) => {
     if (err) {
       return res.status(403).json({
         success: false,
         message: 'Token ไม่ถูกต้องหรือหมดอายุแล้ว โปรดเข้าสู่ระบบใหม่อีกครั้ง'
       });
     }
-    req.user = user;
-    next();
+
+    try {
+      const dbUser = await userRepository.findById(payload.userId);
+      if (!dbUser) {
+        return res.status(401).json({
+          success: false,
+          message: 'ไม่พบผู้ใช้ในระบบ กรุณาลงทะเบียนใหม่'
+        });
+      }
+
+      req.user = {
+        userId: dbUser.user_id,
+        username: dbUser.username,
+        role: dbUser.role
+      };
+      next();
+    } catch (e) {
+      return res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดระหว่างตรวจสอบผู้ใช้' });
+    }
   });
 }
 
