@@ -323,23 +323,28 @@ void updateOLEDDisplay(int batteryPercent) {
 int readBatteryPercentage() {
   const float BATTERY_MIN_V = 3.0f;
   const float BATTERY_MAX_V = 4.2f;
-  const float DIVIDER_RATIO = 2.0f;
+  const float ADC_REF_VOLTAGE = 3.3f;
+  const float DIVIDER_RATIO = 2.0f; // 2:1 divider on battery node
   const int SAMPLE_COUNT = 20;
 
   uint32_t sum = 0;
   for (int i = 0; i < SAMPLE_COUNT; i++) {
     sum += analogRead(PIN_BATTERY_ADC);
-    delay(5);
+    delay(2);
   }
 
   float averageRaw = sum / (float)SAMPLE_COUNT;
-  float adcVoltage = (averageRaw / 4095.0f) * 3.3f;
+  float adcVoltage = (averageRaw / 4095.0f) * ADC_REF_VOLTAGE;
   float batteryVoltage = adcVoltage * DIVIDER_RATIO;
 
-  int percent = (int)(((batteryVoltage - BATTERY_MIN_V) / (BATTERY_MAX_V - BATTERY_MIN_V)) * 100.0f);
+  if (batteryVoltage <= BATTERY_MIN_V) return 0;
+  if (batteryVoltage >= BATTERY_MAX_V) return 100;
+
+  int percent = (int)round(((batteryVoltage - BATTERY_MIN_V) /
+                           (BATTERY_MAX_V - BATTERY_MIN_V)) * 100.0f);
   percent = constrain(percent, 0, 100);
 
-  Serial.printf("[Battery] rawADC=%.1f adcVolt=%.2fV batteryVolt=%.2fV percent=%d%%\n",
+  Serial.printf("[Battery] adcRaw=%.1f adcVolt=%.2fV batteryVolt=%.2fV percent=%d%%\n",
                 averageRaw, adcVoltage, batteryVoltage, percent);
 
   return percent;
