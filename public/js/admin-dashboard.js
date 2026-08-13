@@ -69,6 +69,8 @@ function renderUsersTable() {
 
   if (emptyState) emptyState.classList.add('d-none');
 
+  const currentAdminId = API.getUser() ? API.getUser().userId : null;
+
   tableBody.innerHTML = filtered.map((user, index) => {
     const initials = (user.full_name || user.username || 'U')
       .split(' ')
@@ -86,6 +88,8 @@ function renderUsersTable() {
 
     const deviceCount = Number(user.device_count || 0);
 
+    const isSelf = currentAdminId && Number(user.user_id) === Number(currentAdminId);
+
     return `
       <tr>
         <td>${index + 1}</td>
@@ -102,9 +106,7 @@ function renderUsersTable() {
         <td><span class="badge-box-count">${deviceCount} กล่อง</span></td>
         <td>${createdText}</td>
         <td class="text-end">
-          <button class="btn-delete-user" data-user-id="${user.user_id}" data-user-name="${escapeHtml(user.full_name || user.username)}">
-            <i class="bi bi-trash me-1"></i>ลบ
-          </button>
+          ${isSelf ? `<button class="btn btn-secondary" disabled title="ไม่สามารถลบบัญชีตัวเองได้">บัญชีของคุณ</button>` : `<button class="btn-delete-user" data-user-id="${user.user_id}" data-user-name="${escapeHtml(user.full_name || user.username)}"><i class="bi bi-trash me-1"></i>ลบ</button>`}
         </td>
       </tr>
     `;
