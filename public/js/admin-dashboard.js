@@ -129,13 +129,22 @@ function openDeleteUserModal(userId, userName) {
   const confirmBtn = document.getElementById('confirmDeleteBtn');
   if (confirmBtn) {
     confirmBtn.onclick = async () => {
+      // Prevent double-clicks and show progress
+      confirmBtn.disabled = true;
+      const originalHtml = confirmBtn.innerHTML;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>กำลังลบ...';
       try {
         await API.request(`/api/admin/users/${userId}`, { method: 'DELETE' });
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
+        // Refresh the overview and table
         await loadAdminOverview();
       } catch (err) {
-        alert(err.message || 'ลบผู้ดูแลไม่สำเร็จ');
+        // Restore button state and show error
+        alert(err && err.message ? err.message : 'ลบผู้ดูแลไม่สำเร็จ');
+      } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalHtml;
       }
     };
   }
