@@ -290,6 +290,7 @@ void setupHardwarePins() {
   pinMode(PIN_REED_SWITCH, INPUT_PULLUP);
   pinMode(PIN_PUSH_BUTTON, INPUT_PULLUP);
   pinMode(PIN_BATTERY_ADC, INPUT);
+  analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);
 
   lastReedState = digitalRead(PIN_REED_SWITCH);
 }
@@ -320,10 +321,28 @@ void updateOLEDDisplay(int batteryPercent) {
 }
 
 int readBatteryPercentage() {
-  int rawADC = analogRead(PIN_BATTERY_ADC);
-  float voltage = (rawADC / 4095.0) * 3.3 * 2.0; // Voltage divider factor 2
-  int percent = map((int)(voltage * 100), 320, 420, 0, 100);
-  return constrain(percent, 0, 100);
+  const float BATTERY_MIN_V = 3.0f;
+  const float BATTERY_MAX_V = 4.2f;
+  const float DIVIDER_RATIO = 2.0f;
+  const int SAMPLE_COUNT = 20;
+
+  uint32_t sum = 0;
+  for (int i = 0; i < SAMPLE_COUNT; i++) {
+    sum += analogRead(PIN_BATTERY_ADC);
+    delay(5);
+  }
+
+  float averageRaw = sum / (float)SAMPLE_COUNT;
+  float adcVoltage = (averageRaw / 4095.0f) * 3.3f;
+  float batteryVoltage = adcVoltage * DIVIDER_RATIO;
+
+  int percent = (int)(((batteryVoltage - BATTERY_MIN_V) / (BATTERY_MAX_V - BATTERY_MIN_V)) * 100.0f);
+  percent = constrain(percent, 0, 100);
+
+  Serial.printf("[Battery] rawADC=%.1f adcVolt=%.2fV batteryVolt=%.2fV percent=%d%%\n",
+                averageRaw, adcVoltage, batteryVoltage, percent);
+
+  return percent;
 }
 
 void connectWiFi() {
