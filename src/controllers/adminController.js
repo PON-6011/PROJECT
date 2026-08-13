@@ -54,13 +54,22 @@ class AdminController {
       const ipAddress = req.ip || req.connection.remoteAddress;
       const targetUserId = parseInt(req.params.id, 10);
 
+      console.log('[AdminController] deleteUser request', {
+        caller: req.user || null,
+        targetUserId,
+        ipAddress
+      });
+
       await adminService.deleteUser(req.user.userId, targetUserId, ipAddress);
       res.status(200).json({
         success: true,
         message: 'ลบผู้ดูแลออกจากระบบเรียบร้อยแล้ว'
       });
     } catch (err) {
-      next(err);
+      console.error('[AdminController] deleteUser error', err && err.message ? err.message : err);
+      // Send a clear JSON error to the client so frontend can show it
+      const status = err && err.statusCode ? err.statusCode : 400;
+      res.status(status).json({ success: false, message: err && err.message ? err.message : 'เกิดข้อผิดพลาดในการลบผู้ดูแล' });
     }
   }
 
