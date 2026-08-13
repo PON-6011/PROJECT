@@ -21,7 +21,12 @@ const app = express();
 app.use(helmet({
   contentSecurityPolicy: false // Allow loading Bootstrap, Google Fonts, and inline scripts
 }));
-app.use(cors({ origin: env.corsOrigin }));
+app.use(cors({
+  origin: env.corsOrigin,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(morgan('dev'));
 
 // Rate Limiting
