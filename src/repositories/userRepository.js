@@ -68,8 +68,8 @@ class UserRepository {
   async deleteById(userId) {
     // Unbind devices first (SET user_id = NULL)
     await pool.query('UPDATE devices SET user_id = NULL WHERE user_id = ?', [userId]);
-    // Delete the user
-    const [result] = await pool.query('DELETE FROM users WHERE user_id = ? AND role = ?', [userId, 'caregiver']);
+    // Delete the user if they are not an admin
+    const [result] = await pool.query('DELETE FROM users WHERE user_id = ? AND role != ?', [userId, 'admin']);
     return result.affectedRows > 0;
   }
 
