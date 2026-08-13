@@ -142,6 +142,14 @@ class DeviceRepository {
     return result.affectedRows >= 0;
   }
 
+  async deleteDevicesByUser(userId) {
+    const [result] = await pool.query(
+      'DELETE FROM devices WHERE user_id = ?',
+      [userId]
+    );
+    return result.affectedRows >= 0;
+  }
+
   async incrementScheduleVersion(boxId) {
     const newVersion = Date.now();
     await pool.query(

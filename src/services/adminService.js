@@ -60,18 +60,22 @@ class AdminService {
   async disableUser(adminUserId, targetUserId, ipAddress) {
     const targetUser = await userRepository.findById(targetUserId);
     if (!targetUser) {
-      throw new Error('ไม่พบผู้ดูแลที่ต้องการปิดใช้งาน');
+      throw new Error('ไม่พบผู้ดูแลที่ต้องการลบ/ปิดใช้งาน');
     }
     if (targetUser.role === 'admin') {
-      throw new Error('ไม่สามารถปิดใช้งานบัญชีแอดมินได้');
+      throw new Error('ไม่สามารถลบบัญชีแอดมินได้');
     }
 
-    const updated = await userRepository.setRole(targetUserId, 'disabled');
-    if (!updated) {
-      throw new Error('ไม่สามารถปิดใช้งานผู้ดูแลได้ โปรดลองอีกครั้ง');
+    // Delete devices owned by the user
+    await deviceRepository.deleteDevicesByUser(targetUserId);
+
+    // Delete the user
+    const deleted = await userRepository.deleteById(targetUserId);
+    if (!deleted) {
+      throw new Error('ไม่สามารถลบผู้ดูแลได้ โปรดลองอีกครั้ง');
     }
 
-    await auditRepository.logAction(adminUserId, 'DISABLE_USER', `แอดมินปิดใช้งานผู้ดูแล: ${targetUser.username} (ID: ${targetUserId})`, ipAddress);
+    await auditRepository.logAction(adminUserId, 'DISABLE_USER', `แอดมินลบผู้ดูแลและกล่องยาที่ผูกไว้: ${targetUser.username} (ID: ${targetUserId})`, ipAddress);
     return true;
   }
 
