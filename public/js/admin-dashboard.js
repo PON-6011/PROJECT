@@ -135,18 +135,31 @@ function openDeleteUserModal(userId, userName) {
       confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>กำลังลบ...';
       try {
         console.log('[Admin] Deleting user', userId);
-        const res = await API.request(`/api/admin/users/${userId}`, { method: 'DELETE' });
-        // API.request may redirect (401) and return undefined; handle that
-        if (!res) {
-          throw new Error('ไม่สามารถลบได้: ยังไม่ได้รับการยืนยันสิทธิ์ (โปรดเข้าสู่ระบบใหม่)');
-        }
-        if (!res.success) {
-          throw new Error(res.message || 'ลบผู้ดูแลไม่สำเร็จ');
+        const token = API.getToken();
+        const url = `/api/admin/users/${userId}`;
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const rawRes = await fetch(url, { method: 'DELETE', headers });
+        const text = await rawRes.text();
+        let body = null;
+        try { body = text ? JSON.parse(text) : null; } catch (e) { body = text; }
+
+        console.log('[Admin] Delete response', { status: rawRes.status, body });
+
+        if (rawRes.status === 401 || rawRes.status === 403) {
+          // clear token and surface message
+          API.clearToken();
+          throw new Error(body && body.message ? body.message : 'ไม่ได้รับสิทธิ์ กรุณาเข้าสู่ระบบใหม่');
         }
 
+        if (!rawRes.ok) {
+          throw new Error(body && body.message ? body.message : `ลบไม่สำเร็จ (status ${rawRes.status})`);
+        }
+
+        // success
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
-        // Refresh the overview and table
         await loadAdminOverview();
       } catch (err) {
         console.error('[Admin] Delete user error:', err);
