@@ -204,7 +204,7 @@
 
     <!-- Stats Row -->
     <div class="row g-3 mb-4">
-      <div class="col-md-4">
+      <div class="col-md-6">
         <div class="stat-card">
           <div class="stat-icon purple">
             <i class="bi bi-people-fill"></i>
@@ -215,18 +215,7 @@
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="stat-card">
-          <div class="stat-icon green">
-            <i class="bi bi-box-seam-fill"></i>
-          </div>
-          <div>
-            <div class="stat-value" id="statTotalBoxes">0</div>
-            <div class="stat-label">กล่องยาทั้งหมด</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
+      <div class="col-md-6">
         <div class="stat-card">
           <div class="stat-icon blue">
             <i class="bi bi-calendar-check-fill"></i>
@@ -277,31 +266,6 @@
       </div>
     </div>
 
-    <div class="user-table-wrapper mt-4">
-      <div class="user-table-header">
-        <h6 class="fw-bold mb-0"><i class="bi bi-box-seam me-2 text-primary"></i>กล่องยาทั้งหมดในระบบ</h6>
-      </div>
-      <div class="table-responsive">
-        <table class="table table-custom mb-0" id="devicesTable">
-          <thead>
-            <tr>
-              <th>กล่องยา</th>
-              <th>Serial</th>
-              <th>เจ้าของ</th>
-              <th>สถานะ</th>
-              <th>แบตเตอรี่</th>
-              <th class="text-end">จัดการ</th>
-            </tr>
-          </thead>
-          <tbody id="devicesTableBody">
-            <tr>
-              <td colspan="6" class="text-center text-muted py-4">กำลังโหลดกล่องยา...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 
   <!-- Delete Confirm Modal -->
@@ -322,29 +286,6 @@
           <button type="button" class="btn btn-outline-custom" data-bs-dismiss="modal">ยกเลิก</button>
           <button type="button" class="btn btn-danger" id="confirmDeleteBtn" style="border-radius: var(--radius-md);">
             <i class="bi bi-trash me-1"></i> ลบผู้ดูแล
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade modal-confirm-delete" id="deleteDeviceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content" style="border-radius: var(--radius-lg); border: none;">
-        <div class="modal-header">
-          <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>ยืนยันการลบกล่องยา</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p>คุณต้องการลบกล่องยา <strong id="deleteDeviceName"></strong> ออกจากระบบหรือไม่?</p>
-          <div class="alert alert-warning py-2 small mb-0">
-            <i class="bi bi-info-circle me-1"></i> การลบนี้จะลบกล่องยาจากระบบทั้งหมดทันที
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-custom" data-bs-dismiss="modal">ยกเลิก</button>
-          <button type="button" class="btn btn-danger" id="confirmDeleteDeviceBtn" style="border-radius: var(--radius-md);">
-            <i class="bi bi-trash me-1"></i> ลบกล่องยา
           </button>
         </div>
       </div>
