@@ -13,7 +13,7 @@ This document shows how the ESP32 firmware, Node.js server and MariaDB-backed we
    - Heartbeat (ESP32 -> Server, POST):
      http://HOST:3000/api/esp32/heartbeat
      Headers: `x-device-code: <DEVICE_CODE>`
-     Body: JSON { device_code, battery_level, firmware_version }
+     Body: JSON { device_code, firmware_version }
 
    - Get schedule (ESP32 -> Server, GET):
      http://HOST:3000/api/esp32/schedule?device_code=<DEVICE_CODE>

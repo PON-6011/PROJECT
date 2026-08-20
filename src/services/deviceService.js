@@ -64,8 +64,8 @@ class DeviceService {
     return true;
   }
 
-  async handleHeartbeat(deviceCode, batteryLevel, firmwareVersion) {
-    const device = await deviceRepository.updateHeartbeat(deviceCode, batteryLevel, firmwareVersion);
+  async handleHeartbeat(deviceCode, firmwareVersion) {
+    const device = await deviceRepository.updateHeartbeat(deviceCode, firmwareVersion);
     if (!device) {
       throw new Error('ไม่พบอุปกรณ์ที่มี Serial Number นี้ในระบบ');
     }

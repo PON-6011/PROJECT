@@ -6,14 +6,12 @@
  * 
  * Hardware Pinout Mapping:
  * - GPIO14: Active Buzzer (Reminder Sound)
- * - GPIO15: Yellow LED (Before Meal Indicator)
- * - GPIO32: Green LED (After Meal Indicator)
- * - GPIO25: Red LED (Alert status, stays on until bottle removal)
+ * - GPIO25: LED Before Meal (ไฟแสดงสถานะก่อนอาหาร)
+ * - GPIO32: LED After Meal (ไฟแสดงสถานะหลังอาหาร)
  * - GPIO27: Reed Switch Sensor (Detect Bottle Removal)
  * - GPIO19: Push Button Switch (Stop Buzzer Sound)
  * - GPIO21: OLED I2C SDA
  * - GPIO22: OLED I2C SCL
- * - GPIO34: ADC Battery Voltage Measurement
  * ======================================================================================
  */
 
@@ -40,13 +38,11 @@ const char* CUSTOM_DEVICE_CODE = "BOX-ABC111"; // e.g. "BOX-ABC123"
 String DEVICE_CODE = ""; // Initialized at runtime
 
 // Pin Definitions
-#define PIN_BUZZER        14
-#define PIN_LED_YELLOW    15 // Before Meal
-#define PIN_LED_GREEN     32 // After Meal
-#define PIN_LED_RED       25 // Red alert LED (on until bottle removal)
-#define PIN_REED_SWITCH   27 // Magnet sensor
-#define PIN_PUSH_BUTTON   19 // Silence button
-#define PIN_BATTERY_ADC   34 // Voltage divider ADC
+#define PIN_BUZZER           14
+#define PIN_LED_BEFORE_MEAL  25 // LED for Before Meal reminder
+#define PIN_LED_AFTER_MEAL   32 // LED for After Meal reminder
+#define PIN_REED_SWITCH      27 // Magnet sensor
+#define PIN_PUSH_BUTTON      19 // Silence button
 
 // OLED Display Configuration
 #define SCREEN_WIDTH 128
@@ -73,7 +69,7 @@ ScheduleItem localSchedules[4];
 int scheduleCount = 0;
 int64_t currentScheduleVersion = 0;
 
-int currentBatteryLevel = 85;
+
 bool isAlertActive = false;
 bool isAlertVisualActive = false;
 bool isBuzzerMuted = false;
@@ -100,8 +96,7 @@ const int   daylightOffset_sec = 0;
 // --------------------------------------------------------------------------------------
 void setupHardwarePins();
 void initOLED();
-void updateOLEDDisplay(int batteryPercent);
-int readBatteryPercentage();
+void updateOLEDDisplay();
 void connectWiFi();
 void syncTimeNTP();
 void pollScheduleFromServer();
@@ -149,9 +144,8 @@ void setup() {
   checkFactoryResetButton();
   initDeviceCode();
   
-  // Read battery percentage and render on OLED immediately
-  currentBatteryLevel = readBatteryPercentage();
-  updateOLEDDisplay(currentBatteryLevel);
+  // Render OLED display
+  updateOLEDDisplay();
 
   // Initialize WiFi & Sync
   connectWiFi();
@@ -190,8 +184,8 @@ void initDeviceCode() {
   display.printf("Device:\n%s", DEVICE_CODE.c_str());
   display.display();
   delay(2000);
-  // Restore battery display
-  updateOLEDDisplay(currentBatteryLevel);
+  // Restore display
+  updateOLEDDisplay();
 }
 
 // --------------------------------------------------------------------------------------
@@ -218,8 +212,7 @@ void loop() {
       // newly connected
       wifiPreviouslyConnected = true;
       Serial.println("[WiFi] Connected (detected in loop). Sending immediate heartbeat and polling schedule.");
-      currentBatteryLevel = readBatteryPercentage();
-      updateOLEDDisplay(currentBatteryLevel);
+      updateOLEDDisplay();
       sendHeartbeat();
       pollScheduleFromServer();
     }
@@ -228,8 +221,6 @@ void loop() {
   // 2. Telemetry Heartbeat & Polling every 30 seconds
   if (now - lastHeartbeatTimestamp > 30000) {
     lastHeartbeatTimestamp = now;
-    currentBatteryLevel = readBatteryPercentage();
-    updateOLEDDisplay(currentBatteryLevel);
 
     if (WiFi.status() == WL_CONNECTED) {
       sendHeartbeat();
@@ -278,19 +269,15 @@ void loop() {
 // --------------------------------------------------------------------------------------
 void setupHardwarePins() {
   pinMode(PIN_BUZZER, OUTPUT);
-  pinMode(PIN_LED_YELLOW, OUTPUT);
-  pinMode(PIN_LED_GREEN, OUTPUT);
-  pinMode(PIN_LED_RED, OUTPUT);
+  pinMode(PIN_LED_BEFORE_MEAL, OUTPUT);
+  pinMode(PIN_LED_AFTER_MEAL, OUTPUT);
 
   digitalWrite(PIN_BUZZER, LOW);
-  digitalWrite(PIN_LED_YELLOW, LOW);
-  digitalWrite(PIN_LED_GREEN, LOW);
-  digitalWrite(PIN_LED_RED, LOW);
+  digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
+  digitalWrite(PIN_LED_AFTER_MEAL, LOW);
 
   pinMode(PIN_REED_SWITCH, INPUT_PULLUP);
   pinMode(PIN_PUSH_BUTTON, INPUT_PULLUP);
-  pinMode(PIN_BATTERY_ADC, INPUT);
-  analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);
 
   lastReedState = digitalRead(PIN_REED_SWITCH);
 }
@@ -307,47 +294,19 @@ void initOLED() {
 }
 
 /**
- * Display Requirement according to SRS: OLED displays ONLY Battery Percentage!
+ * OLED Display: Shows Device Code and connection status only.
  */
-void updateOLEDDisplay(int batteryPercent) {
+void updateOLEDDisplay() {
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.printf("%s", DEVICE_CODE.c_str());
+  display.println("MedBox Device");
   display.setCursor(0, 16);
-  display.setTextSize(2);
-  display.printf("Battery %d%%", batteryPercent);
+  display.setTextSize(1);
+  display.printf("ID: %s", DEVICE_CODE.c_str());
+  display.setCursor(0, 36);
+  display.printf("WiFi: %s", WiFi.status() == WL_CONNECTED ? "Connected" : "Offline");
   display.display();
-}
-
-int readBatteryPercentage() {
-  const float BATTERY_MIN_V = 3.0f;
-  const float BATTERY_MAX_V = 4.2f;
-  const float ADC_REF_VOLTAGE = 3.3f;
-  const float DIVIDER_RATIO = 2.0f; // 2:1 divider on battery node
-  const int SAMPLE_COUNT = 20;
-
-  uint32_t sum = 0;
-  for (int i = 0; i < SAMPLE_COUNT; i++) {
-    sum += analogRead(PIN_BATTERY_ADC);
-    delay(2);
-  }
-
-  float averageRaw = sum / (float)SAMPLE_COUNT;
-  float adcVoltage = (averageRaw / 4095.0f) * ADC_REF_VOLTAGE;
-  float batteryVoltage = adcVoltage * DIVIDER_RATIO;
-
-  if (batteryVoltage <= BATTERY_MIN_V) return 0;
-  if (batteryVoltage >= BATTERY_MAX_V) return 100;
-
-  int percent = (int)round(((batteryVoltage - BATTERY_MIN_V) /
-                           (BATTERY_MAX_V - BATTERY_MIN_V)) * 100.0f);
-  percent = constrain(percent, 0, 100);
-
-  Serial.printf("[Battery] adcRaw=%.1f adcVolt=%.2fV batteryVolt=%.2fV percent=%d%%\n",
-                averageRaw, adcVoltage, batteryVoltage, percent);
-
-  return percent;
 }
 
 void connectWiFi() {
@@ -424,7 +383,6 @@ void sendHeartbeat() {
 
   StaticJsonDocument<200> doc;
   doc["device_code"] = DEVICE_CODE;
-  doc["battery_level"] = currentBatteryLevel;
   doc["firmware_version"] = "v1.0.0";
 
   String jsonBody;
@@ -658,18 +616,15 @@ void triggerAlert(int scheduleIdx) {
   // Play Active Buzzer (GPIO14)
   digitalWrite(PIN_BUZZER, HIGH);
 
-  // Turn ON Red alert LED (GPIO25) and keep it ON until bottle removal.
-  digitalWrite(PIN_LED_RED, HIGH);
-
-  // Meal Timing LED Logic according to SRS:
-  // Before Meal -> Yellow LED (GPIO15)
-  // After Meal  -> Green LED (GPIO32)
+  // Meal Timing LED Logic:
+  // Before Meal -> LED on GPIO25
+  // After Meal  -> LED on GPIO32
   if (isBeforeMealTiming(localSchedules[scheduleIdx].meal_timing)) {
-    digitalWrite(PIN_LED_YELLOW, HIGH);
-    digitalWrite(PIN_LED_GREEN, LOW);
+    digitalWrite(PIN_LED_BEFORE_MEAL, HIGH);
+    digitalWrite(PIN_LED_AFTER_MEAL, LOW);
   } else {
-    digitalWrite(PIN_LED_YELLOW, LOW);
-    digitalWrite(PIN_LED_GREEN, HIGH);
+    digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
+    digitalWrite(PIN_LED_AFTER_MEAL, HIGH);
   }
 
   Serial.println("[ALERT TRIGGERED] Visual and Audio alarm started!");
@@ -681,9 +636,8 @@ void stopAlert() {
   isBuzzerMuted = false;
   activeScheduleIndex = -1;
   digitalWrite(PIN_BUZZER, LOW);
-  digitalWrite(PIN_LED_RED, LOW);
-  digitalWrite(PIN_LED_YELLOW, LOW);
-  digitalWrite(PIN_LED_GREEN, LOW);
+  digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
+  digitalWrite(PIN_LED_AFTER_MEAL, LOW);
 }
 
 void checkSensors() {

@@ -11,13 +11,13 @@ class ESP32Controller {
   async heartbeat(req, res, next) {
     try {
       const deviceCode = req.headers['x-device-code'] || req.body.device_code;
-      const { battery_level, firmware_version } = req.body;
+      const { firmware_version } = req.body;
 
       if (!deviceCode) {
         return res.status(400).json({ success: false, message: 'Missing device_code' });
       }
 
-      const result = await deviceService.handleHeartbeat(deviceCode, battery_level, firmware_version);
+      const result = await deviceService.handleHeartbeat(deviceCode, firmware_version);
       res.status(200).json(result);
     } catch (err) {
       next(err);

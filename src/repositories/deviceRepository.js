@@ -95,26 +95,18 @@ class DeviceRepository {
     return result.affectedRows > 0;
   }
 
-  async updateHeartbeat(deviceCode, batteryLevel, firmwareVersion) {
+  async updateHeartbeat(deviceCode, firmwareVersion) {
     const now = new Date();
     const [result] = await pool.query(
       `UPDATE devices SET 
-        battery_level = COALESCE(?, battery_level), 
         firmware_version = COALESCE(?, firmware_version),
         status = 'Online', 
         last_seen = NOW() 
        WHERE device_code = ?`,
-      [batteryLevel, firmwareVersion, deviceCode]
+      [firmwareVersion, deviceCode]
     );
 
-    // Get box_id to record battery log
     const device = await this.findByCode(deviceCode);
-    if (device && batteryLevel !== undefined && batteryLevel !== null) {
-      await pool.query(
-        'INSERT INTO battery_logs (box_id, battery_level, recorded_at) VALUES (?, ?, NOW())',
-        [device.box_id, batteryLevel]
-      );
-    }
     return device;
   }
 

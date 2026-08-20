@@ -21,7 +21,6 @@ async function renderDevices() {
           <div class="card-body">
             <h5 class="card-title">${d.box_name} <small class="text-muted">(${d.device_code})</small></h5>
             <p class="card-text">สถานะ: <strong>${d.status || d.online_status || 'Unknown'}</strong></p>
-            <p class="card-text">แบตเตอรี่: ${d.battery_level || '-'}%</p>
             <p class="card-text">ตารางการเตือน:</p>
             <ul>${schedHtml}</ul>
           </div>

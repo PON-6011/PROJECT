@@ -38,11 +38,6 @@ async function loadDashboardDevices() {
         ? `<span class="badge-online"><i class="bi bi-wifi"></i> ออนไลน์</span>`
         : `<span class="badge-offline"><i class="bi bi-wifi-off"></i> ออฟไลน์</span>`;
 
-      // Battery color logic
-      let batteryColorClass = 'text-success';
-      if (d.battery_level <= 20) batteryColorClass = 'text-danger';
-      else if (d.battery_level <= 50) batteryColorClass = 'text-warning';
-
       const lastSeenText = d.last_seen ? new Date(d.last_seen).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'ยังไม่มีข้อมูล';
 
       const scheduleList = (d.schedules || []).length > 0
@@ -66,9 +61,6 @@ async function loadDashboardDevices() {
               </div>
               <div class="d-flex gap-2 align-items-center">
                 ${statusBadge}
-                <span class="badge-battery ${batteryColorClass} fw-bold">
-                  <i class="bi bi-battery-charging"></i> ${d.battery_level}%
-                </span>
               </div>
             </div>
 
