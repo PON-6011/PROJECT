@@ -65,7 +65,8 @@ struct ScheduleItem {
   bool triggered_today;
 };
 
-ScheduleItem localSchedules[4];
+#define MAX_SCHEDULES 10
+ScheduleItem localSchedules[MAX_SCHEDULES];
 int scheduleCount = 0;
 int64_t currentScheduleVersion = 0;
 
@@ -416,7 +417,7 @@ void pollScheduleFromServer() {
 
         JsonArray arr = doc["schedules"].as<JsonArray>();
         for (JsonObject s : arr) {
-          if (scheduleCount < 4) {
+          if (scheduleCount < MAX_SCHEDULES) {
             localSchedules[scheduleCount].schedule_id = s["schedule_id"];
             const char* timeStr = s["time"]; // "08:00:00"
             sscanf(timeStr, "%d:%d", &localSchedules[scheduleCount].hour, &localSchedules[scheduleCount].minute);
@@ -557,8 +558,6 @@ void checkScheduledReminders() {
   }
 
   // Compare RTC time with schedule times.
-  // Use a grace window (SCHEDULE_GRACE_MIN) so that if the loop was busy during the
-  // exact trigger minute (e.g. another alert was active), the schedule is still caught.
   const int SCHEDULE_GRACE_MIN = 6; // Trigger up to 6 minutes after scheduled time
   int nowMinOfDay = timeinfo.tm_hour * 60 + timeinfo.tm_min;
 
@@ -572,20 +571,21 @@ void checkScheduledReminders() {
 
       // Trigger if current time is within [0, SCHEDULE_GRACE_MIN) minutes past schedule time
       if (diffMin >= 0 && diffMin < SCHEDULE_GRACE_MIN) {
-        Serial.printf("[Schedule] Matched schedule %d (set %02d:%02d, now %02d:%02d, +%d min)\n",
-          localSchedules[i].schedule_id,
+        Serial.printf("[Schedule] Triggering schedule #%d (ID: %d, time: %02d:%02d, current: %02d:%02d)\n",
+          i + 1, localSchedules[i].schedule_id,
           localSchedules[i].hour, localSchedules[i].minute,
-          timeinfo.tm_hour, timeinfo.tm_min, diffMin);
+          timeinfo.tm_hour, timeinfo.tm_min);
 
         localSchedules[i].triggered_today = true;
 
-        // If another alert is currently active, mark it Missed first
-        if (isAlertActive && activeScheduleIndex >= 0 && activeScheduleIndex != i) {
-          Serial.printf("[Schedule] Overriding active alert for schedule %d -> Missed\n",
-            localSchedules[activeScheduleIndex].schedule_id);
-          uploadIntakeLog("Missed", localSchedules[activeScheduleIndex].schedule_id);
+        // If a previous alert is still ringing or visual alert is active, conclude it as Missed
+        if ((isAlertActive || isAlertVisualActive) && activeScheduleIndex >= 0 && activeScheduleIndex != i) {
+          int oldSchedId = localSchedules[activeScheduleIndex].schedule_id;
+          Serial.printf("[Schedule] Previous alert (Schedule ID: %d) ended as Missed due to new schedule.\n", oldSchedId);
+          uploadIntakeLog("Missed", oldSchedId);
         }
 
+        // Trigger new alert cleanly
         triggerAlert(i);
         break; // Only trigger one schedule per loop tick
       }
@@ -594,13 +594,19 @@ void checkScheduledReminders() {
 }
 
 void triggerAlert(int scheduleIdx) {
+  // Reset all previous alert states
+  digitalWrite(PIN_BUZZER, LOW);
+  digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
+  digitalWrite(PIN_LED_AFTER_MEAL, LOW);
+  delay(50); // Short physical gap so user perceives the new alert distinctively
+
   isAlertActive = true;
   isAlertVisualActive = true;
   isBuzzerMuted = false;
   activeScheduleIndex = scheduleIdx;
-  alertStartTimestamp = millis();  // Start 5-minute countdown
+  alertStartTimestamp = millis();  // Start fresh 5-minute countdown
 
-  // Start beep pattern (non-blocking)
+  // Start fresh beep pattern (non-blocking)
   buzzerBeepActive = true;
   buzzerBeepStep = 0;
   buzzerLastToggle = millis();
@@ -617,7 +623,11 @@ void triggerAlert(int scheduleIdx) {
     digitalWrite(PIN_LED_AFTER_MEAL, HIGH);
   }
 
-  Serial.println("[ALERT TRIGGERED] Beep pattern started!");
+  Serial.printf("[ALERT TRIGGERED] Alert started for Schedule ID: %d (%02d:%02d %s)\n",
+    localSchedules[scheduleIdx].schedule_id,
+    localSchedules[scheduleIdx].hour,
+    localSchedules[scheduleIdx].minute,
+    localSchedules[scheduleIdx].meal_timing);
 }
 
 void stopAlert() {
@@ -650,18 +660,14 @@ void checkSensors() {
   int reedState = digitalRead(PIN_REED_SWITCH);
   if (reedState == HIGH && lastReedState == LOW && millis() - lastReedEventMillis > 1000) {
     lastReedEventMillis = millis();
-    if (isAlertActive) {
-      // Scheduled intake completed
+    if (isAlertActive || isAlertVisualActive) {
+      // Scheduled intake completed for the active alarm
       int currentScheduleId = activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0;
       stopAlert();
       uploadIntakeLog("Taken", currentScheduleId);
-      Serial.printf("[Reed Switch] Bottle removed during alarm -> Status: Taken (Schedule ID: %d)\n", currentScheduleId);
+      Serial.printf("[Reed Switch] Bottle removed during/after alarm -> Status: Taken (Schedule ID: %d)\n", currentScheduleId);
     } else {
-      if (isAlertVisualActive) {
-        stopAlert();
-        Serial.println("[Reed Switch] Bottle removed after alert -> Clearing visual alert.");
-      }
-
+      // Bottle removed when NO alarm is active
       struct tm timeinfo;
       bool hasTime = getLocalTime(&timeinfo);
       int currentMinutes = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
@@ -669,50 +675,29 @@ void checkSensors() {
       bool takenEarly = false;
 
       if (hasTime && scheduleCount > 0) {
-        int bestPastDiff = 1440;
-        int bestFutureDiff = 1440;
-        int bestPastIdx = -1;
-        int bestFutureIdx = -1;
+        int bestDiff = 1440;
 
+        // Check if there is an upcoming schedule within 30 minutes (Taken Early)
         for (int i = 0; i < scheduleCount; i++) {
           if (localSchedules[i].triggered_today) continue;
           int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
-          if (scheduleMinutes <= currentMinutes) {
-            int diff = currentMinutes - scheduleMinutes;
-            if (diff < bestPastDiff) {
-              bestPastDiff = diff;
-              bestPastIdx = i;
-            }
-          } else {
-            int diff = scheduleMinutes - currentMinutes;
-            if (diff < bestFutureDiff) {
-              bestFutureDiff = diff;
-              bestFutureIdx = i;
-            }
+          int diff = scheduleMinutes - currentMinutes;
+          // Only count as Taken Early if within 30 minutes before schedule
+          if (diff > 0 && diff <= 30 && diff < bestDiff) {
+            bestDiff = diff;
+            selectedIdx = i;
+            takenEarly = true;
           }
-        }
-
-        if (bestPastIdx >= 0) {
-          selectedIdx = bestPastIdx;
-          takenEarly = false;
-        } else if (bestFutureIdx >= 0) {
-          selectedIdx = bestFutureIdx;
-          takenEarly = true;
         }
       }
 
-      if (selectedIdx >= 0) {
+      if (selectedIdx >= 0 && takenEarly) {
         localSchedules[selectedIdx].triggered_today = true;
         int schedId = localSchedules[selectedIdx].schedule_id;
-        if (takenEarly) {
-          uploadIntakeLog("Taken Early", schedId);
-          Serial.printf("[Reed Switch] Bottle removed before schedule -> Status: Taken Early (Schedule ID: %d)\n", schedId);
-        } else {
-          uploadIntakeLog("Taken", schedId);
-          Serial.printf("[Reed Switch] Bottle removed at/after schedule -> Status: Taken (Schedule ID: %d)\n", schedId);
-        }
+        uploadIntakeLog("Taken Early", schedId);
+        Serial.printf("[Reed Switch] Bottle removed early -> Status: Taken Early (Schedule ID: %d)\n", schedId);
       } else {
-        Serial.println("[Reed Switch] Bottle removed (already recorded for this time slot / today).");
+        Serial.println("[Reed Switch] Bottle removed (idle / already processed).");
       }
     }
   }
@@ -783,7 +768,7 @@ void saveSchedulesToFlash() {
   preferences.putInt("sched_count", scheduleCount);
   preferences.putLong64("sched_ver", (long long)currentScheduleVersion);
 
-  for (int i = 0; i < scheduleCount && i < 4; i++) {
+  for (int i = 0; i < scheduleCount && i < MAX_SCHEDULES; i++) {
     char key[24];
 
     snprintf(key, sizeof(key), "s%d_id", i);
@@ -820,7 +805,7 @@ void loadSchedulesFromFlash() {
   long long ver = preferences.getLong64("sched_ver", 0LL);
   preferences.end();
 
-  if (count <= 0 || count > 4) {
+  if (count <= 0 || count > MAX_SCHEDULES) {
     Serial.println("[Flash] No valid cached schedule found in NVS Flash.");
     return;
   }
@@ -829,7 +814,7 @@ void loadSchedulesFromFlash() {
   scheduleCount = 0;
   currentScheduleVersion = (int64_t)ver;
 
-  for (int i = 0; i < count && i < 4; i++) {
+  for (int i = 0; i < count && i < MAX_SCHEDULES; i++) {
     char key[24];
 
     snprintf(key, sizeof(key), "s%d_id", i);
