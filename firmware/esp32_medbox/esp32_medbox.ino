@@ -556,17 +556,38 @@ void checkScheduledReminders() {
     Serial.printf("[Schedule] Daily trigger state reset for day %d.\n", currentDay);
   }
 
-  // Compare RTC time with schedule times
+  // Compare RTC time with schedule times.
+  // Use a grace window (SCHEDULE_GRACE_MIN) so that if the loop was busy during the
+  // exact trigger minute (e.g. another alert was active), the schedule is still caught.
+  const int SCHEDULE_GRACE_MIN = 6; // Trigger up to 6 minutes after scheduled time
+  int nowMinOfDay = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+
   for (int i = 0; i < scheduleCount; i++) {
     if (!localSchedules[i].triggered_today) {
-      if (timeinfo.tm_hour == localSchedules[i].hour && timeinfo.tm_min == localSchedules[i].minute) {
-        Serial.printf("[Schedule] Time matched schedule %d at %02d:%02d\n", localSchedules[i].schedule_id, timeinfo.tm_hour, timeinfo.tm_min);
+      int schedMinOfDay = localSchedules[i].hour * 60 + localSchedules[i].minute;
+      int diffMin = nowMinOfDay - schedMinOfDay;
+
+      // Handle midnight wrap-around (e.g. schedule at 23:59, now 00:01)
+      if (diffMin < -720) diffMin += 1440;
+
+      // Trigger if current time is within [0, SCHEDULE_GRACE_MIN) minutes past schedule time
+      if (diffMin >= 0 && diffMin < SCHEDULE_GRACE_MIN) {
+        Serial.printf("[Schedule] Matched schedule %d (set %02d:%02d, now %02d:%02d, +%d min)\n",
+          localSchedules[i].schedule_id,
+          localSchedules[i].hour, localSchedules[i].minute,
+          timeinfo.tm_hour, timeinfo.tm_min, diffMin);
+
         localSchedules[i].triggered_today = true;
+
+        // If another alert is currently active, mark it Missed first
         if (isAlertActive && activeScheduleIndex >= 0 && activeScheduleIndex != i) {
+          Serial.printf("[Schedule] Overriding active alert for schedule %d -> Missed\n",
+            localSchedules[activeScheduleIndex].schedule_id);
           uploadIntakeLog("Missed", localSchedules[activeScheduleIndex].schedule_id);
         }
+
         triggerAlert(i);
-        break;
+        break; // Only trigger one schedule per loop tick
       }
     }
   }
