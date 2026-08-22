@@ -218,8 +218,8 @@ void loop() {
     }
   }
 
-  // 2. Telemetry Heartbeat & Polling every 30 seconds
-  if (now - lastHeartbeatTimestamp > 30000) {
+  // 2. Telemetry Heartbeat & Polling every 1 second
+  if (now - lastHeartbeatTimestamp > 1000) {
     lastHeartbeatTimestamp = now;
 
     if (WiFi.status() == WL_CONNECTED) {
