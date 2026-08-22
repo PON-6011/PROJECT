@@ -29,13 +29,14 @@ app.use(cors({
 }));
 app.use(morgan('dev'));
 
-// Rate Limiting
-const limiter = rateLimit({
+// Rate Limiting for Auth
+const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // limit each IP to 300 requests per windowMs
-  message: { success: false, message: 'คำร้องขอสแกน/ส่งเข้าสู่ระบบมากเกินไป โปรดลองใหม่อีกครั้งในภายหลัง' }
+  max: 100, // limit each IP to 100 login/register attempts per 15 minutes
+  message: { success: false, message: 'มีการพยายามเข้าสู่ระบบมากเกินไป โปรดลองใหม่อีกครั้งในภายหลัง' }
 });
-app.use('/api/', limiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // Body Parsers
 app.use(express.json());
