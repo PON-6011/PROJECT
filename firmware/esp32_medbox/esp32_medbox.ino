@@ -108,6 +108,8 @@ void triggerAlert(int scheduleIdx);
 void stopAlert();
 void uploadIntakeLog(const char* status, int scheduleId);
 void checkSensors();
+void saveSchedulesToFlash();
+void loadSchedulesFromFlash();
 
 // --------------------------------------------------------------------------------------
 // Arduino Setup Function
@@ -148,11 +150,14 @@ void setup() {
   // Render OLED display
   updateOLEDDisplay();
 
+  // Load cached schedule from Flash (works offline before WiFi connects)
+  loadSchedulesFromFlash();
+
   // Initialize WiFi & Sync
   connectWiFi();
   syncTimeNTP();
 
-  // Polling initial schedule
+  // Polling initial schedule (will overwrite Flash cache if server responds)
   pollScheduleFromServer();
 }
 
@@ -431,6 +436,7 @@ void pollScheduleFromServer() {
           }
         }
         Serial.printf("[Schedule] Synchronized %d schedule items.\n", scheduleCount);
+        saveSchedulesToFlash(); // Persist to Flash for offline use
       } else {
         Serial.printf("[Schedule] schedule_version unchanged (%lld).\n", newVersion);
       }
@@ -533,7 +539,13 @@ void checkScheduledReminders() {
   }
 
   if (scheduleCount == 0) {
-    Serial.println("[Schedule] No schedules loaded yet. Waiting for sync from server.");
+    // Only print this warning once every 30 seconds to avoid log spam
+    static unsigned long lastNoScheduleLog = 0;
+    if (millis() - lastNoScheduleLog > 30000) {
+      lastNoScheduleLog = millis();
+      Serial.println("[Schedule] No schedules loaded yet. Waiting for sync from server.");
+    }
+    return;
   }
 
   // Reset daily trigger state once when the day changes.
@@ -681,4 +693,95 @@ void checkSensors() {
     }
   }
   lastReedState = reedState;
+}
+
+// --------------------------------------------------------------------------------------
+// Flash (NVS) Persistence for Offline Schedule
+// --------------------------------------------------------------------------------------
+
+/**
+ * saveSchedulesToFlash()
+ * Persists the current in-memory schedules and schedule version to NVS Flash.
+ * Called every time a new schedule is received from the server.
+ * Allows the device to survive WiFi outages and still trigger reminders.
+ */
+void saveSchedulesToFlash() {
+  preferences.begin("medbox", false);
+  preferences.putInt("sched_count", scheduleCount);
+  preferences.putLong64("sched_ver", (long long)currentScheduleVersion);
+
+  for (int i = 0; i < scheduleCount && i < 4; i++) {
+    char key[24];
+
+    snprintf(key, sizeof(key), "s%d_id", i);
+    preferences.putInt(key, localSchedules[i].schedule_id);
+
+    snprintf(key, sizeof(key), "s%d_hr", i);
+    preferences.putInt(key, localSchedules[i].hour);
+
+    snprintf(key, sizeof(key), "s%d_min", i);
+    preferences.putInt(key, localSchedules[i].minute);
+
+    snprintf(key, sizeof(key), "s%d_mt", i);
+    preferences.putString(key, localSchedules[i].meal_timing);
+
+    snprintf(key, sizeof(key), "s%d_rc", i);
+    preferences.putInt(key, localSchedules[i].repeat_count);
+
+    snprintf(key, sizeof(key), "s%d_ri", i);
+    preferences.putInt(key, localSchedules[i].repeat_interval_min);
+  }
+  preferences.end();
+  Serial.printf("[Flash] Saved %d schedule(s) to NVS Flash (version %lld).\n", scheduleCount, (long long)currentScheduleVersion);
+}
+
+/**
+ * loadSchedulesFromFlash()
+ * Loads previously saved schedules from NVS Flash into RAM.
+ * Called at boot before WiFi connects, so reminders work even offline.
+ * triggered_today is reset to false so daily triggers are rechecked properly.
+ */
+void loadSchedulesFromFlash() {
+  preferences.begin("medbox", true); // read-only
+  int count = preferences.getInt("sched_count", 0);
+  long long ver = preferences.getLong64("sched_ver", 0LL);
+  preferences.end();
+
+  if (count <= 0 || count > 4) {
+    Serial.println("[Flash] No valid cached schedule found in NVS Flash.");
+    return;
+  }
+
+  preferences.begin("medbox", true);
+  scheduleCount = 0;
+  currentScheduleVersion = (int64_t)ver;
+
+  for (int i = 0; i < count && i < 4; i++) {
+    char key[24];
+
+    snprintf(key, sizeof(key), "s%d_id", i);
+    localSchedules[i].schedule_id = preferences.getInt(key, 0);
+
+    snprintf(key, sizeof(key), "s%d_hr", i);
+    localSchedules[i].hour = preferences.getInt(key, 0);
+
+    snprintf(key, sizeof(key), "s%d_min", i);
+    localSchedules[i].minute = preferences.getInt(key, 0);
+
+    snprintf(key, sizeof(key), "s%d_mt", i);
+    String mt = preferences.getString(key, "before_meal");
+    strncpy(localSchedules[i].meal_timing, mt.c_str(), 19);
+    localSchedules[i].meal_timing[19] = '\0';
+
+    snprintf(key, sizeof(key), "s%d_rc", i);
+    localSchedules[i].repeat_count = preferences.getInt(key, 3);
+
+    snprintf(key, sizeof(key), "s%d_ri", i);
+    localSchedules[i].repeat_interval_min = preferences.getInt(key, 5);
+
+    localSchedules[i].triggered_today = false; // Always reset on boot
+    scheduleCount++;
+  }
+  preferences.end();
+  Serial.printf("[Flash] Loaded %d schedule(s) from NVS Flash (version %lld). Device can alert offline.\n", scheduleCount, (long long)currentScheduleVersion);
 }
