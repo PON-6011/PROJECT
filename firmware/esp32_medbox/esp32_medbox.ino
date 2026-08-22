@@ -86,10 +86,11 @@ int lastReedState = LOW;
 unsigned long lastReedEventMillis = 0;
 int lastScheduleResetDayOfYear = -1;
 
-// NTP Time Client Settings
+// NTP Time Client Settings & Calibration
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 7 * 3600; // GMT+7 Bangkok/Thailand
 const int   daylightOffset_sec = 0;
+const int   TIME_OFFSET_ADJUST_SEC = -4; // Calibrate 4-second offset so reminder sounds on exact real time
 
 // --------------------------------------------------------------------------------------
 // Function Declarations
@@ -330,7 +331,7 @@ void connectWiFi() {
 }
 
 void syncTimeNTP() {
-  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.google.com", "th.pool.ntp.org");
+  configTime(gmtOffset_sec + TIME_OFFSET_ADJUST_SEC, daylightOffset_sec, "pool.ntp.org", "time.google.com", "th.pool.ntp.org");
 }
 
 // --------------------------------------------------------------------------------------
@@ -366,17 +367,18 @@ void sendHeartbeat() {
         Serial.printf("[Heartbeat] Server schedule_version=%lld differs from local=%lld. Polling schedule...\n", srvVer, currentScheduleVersion);
         pollScheduleFromServer();
       }
-      // Synchronize exact system clock with server
+      // Synchronize exact system clock with server (adjusted for user real time)
       int64_t srvEpoch = resp["server_epoch"] | 0LL;
       if (srvEpoch > 1700000000) {
+        time_t targetEpoch = (time_t)(srvEpoch + TIME_OFFSET_ADJUST_SEC);
         time_t currentLocalSecs;
         time(&currentLocalSecs);
-        if (abs((long)(currentLocalSecs - srvEpoch)) > 1) {
+        if (abs((long)(currentLocalSecs - targetEpoch)) >= 1) {
           struct timeval tv;
-          tv.tv_sec = (time_t)srvEpoch;
+          tv.tv_sec = targetEpoch;
           tv.tv_usec = 0;
           settimeofday(&tv, NULL);
-          Serial.printf("[Time] Clock precisely synced with server epoch %lld\n", srvEpoch);
+          Serial.printf("[Time] Clock calibrated to real time: %lld\n", (long long)targetEpoch);
         }
       }
     } else {

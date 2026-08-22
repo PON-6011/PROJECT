@@ -1,12 +1,10 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const boxFilter = document.getElementById('boxFilter');
-  const daysFilter = document.getElementById('daysFilter');
 
   await populateBoxFilter();
   await loadHistoryTable();
 
   if (boxFilter) boxFilter.addEventListener('change', loadHistoryTable);
-  if (daysFilter) daysFilter.addEventListener('change', loadHistoryTable);
 });
 
 async function populateBoxFilter() {
@@ -30,11 +28,9 @@ async function loadHistoryTable() {
   if (!historyTableBody) return;
 
   const boxId = document.getElementById('boxFilter') ? document.getElementById('boxFilter').value : '';
-  const days = document.getElementById('daysFilter') ? document.getElementById('daysFilter').value : '';
 
   let query = '/api/history?';
   if (boxId) query += `box_id=${boxId}&`;
-  if (days) query += `days=${days}&`;
 
   try {
     const res = await API.request(query);
