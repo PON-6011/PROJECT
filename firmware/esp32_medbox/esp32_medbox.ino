@@ -224,7 +224,6 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       sendHeartbeat();
-      pollScheduleFromServer();
     }
   }
 
@@ -365,16 +364,6 @@ void sendHeartbeat() {
     Serial.println("[Heartbeat] Resolved host '" + host + "' -> " + serverIp.toString());
   } else {
     Serial.println("[Heartbeat] DNS lookup failed for host: " + host);
-  }
-
-  // TCP connect test
-  WiFiClient testClient;
-  Serial.printf("[Heartbeat] Testing TCP connect to %s:%u\n", host.c_str(), port);
-  if (!testClient.connect(host.c_str(), port)) {
-    Serial.println("[Heartbeat] TCP connect failed (network/server unreachable)");
-  } else {
-    Serial.println("[Heartbeat] TCP connect OK");
-    testClient.stop();
   }
 
   http.begin(url);
