@@ -73,8 +73,8 @@ int64_t currentScheduleVersion = 0;
 bool isAlertActive = false;
 bool isAlertVisualActive = false;
 bool isBuzzerMuted = false;
-int alertRepeatRounds = 0;
-unsigned long lastRepeatTimestamp = 0;
+unsigned long alertStartTimestamp = 0;  // When the current alert was first triggered
+#define ALERT_TIMEOUT_MS  (5UL * 60UL * 1000UL)  // 5 minutes -> mark Missed
 unsigned long lastHeartbeatTimestamp = 0;
 int activeScheduleIndex = -1;
 unsigned long lastHistoryLogMillis = 0;
@@ -85,6 +85,16 @@ int lastHistoryLogMinuteOfDay = -1;
 int lastReedState = LOW;
 unsigned long lastReedEventMillis = 0;
 int lastScheduleResetDayOfYear = -1;
+
+// Buzzer Beep Pattern (non-blocking)
+// Pattern: ON 150ms, OFF 150ms, repeat 3 times, then pause 600ms
+#define BEEP_ON_MS      150   // Duration of each beep
+#define BEEP_OFF_MS     150   // Gap between beeps
+#define BEEP_COUNT      3     // Number of beeps per burst
+#define BEEP_PAUSE_MS   600   // Pause between bursts
+bool buzzerBeepActive = false;  // true = beep pattern running
+unsigned long buzzerLastToggle = 0;
+int buzzerBeepStep = 0;         // 0..BEEP_COUNT*2-1 = on/off cycles, then pause
 
 // NTP Time Client Settings & Calibration
 const char* ntpServer = "pool.ntp.org";
@@ -110,6 +120,7 @@ void uploadIntakeLog(const char* status, int scheduleId);
 void checkSensors();
 void saveSchedulesToFlash();
 void loadSchedulesFromFlash();
+void handleBuzzerBeep();
 
 // --------------------------------------------------------------------------------------
 // Arduino Setup Function
@@ -240,31 +251,18 @@ void loop() {
   // 4. Sensor Reading (Button & Reed Switch)
   checkSensors();
 
-  // 5. Handle Alert Repetition logic using per-schedule repeat settings
-  if (isAlertActive && activeScheduleIndex >= 0) {
-    // Determine interval and max rounds from active schedule (fallbacks)
-    int repeatIntervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
-    int maxRounds = localSchedules[activeScheduleIndex].repeat_count > 0 ? localSchedules[activeScheduleIndex].repeat_count : 3;
-    unsigned long intervalMs = (unsigned long)repeatIntervalMin * 60UL * 1000UL;
+  // 5. Non-blocking Buzzer Beep Pattern
+  handleBuzzerBeep();
 
-    if (now - lastRepeatTimestamp > intervalMs) {
-      if (alertRepeatRounds < maxRounds) {
-        alertRepeatRounds++;
-        // Sound the buzzer again regardless of mute state
-        isBuzzerMuted = false;
-        digitalWrite(PIN_BUZZER, HIGH);
-        lastRepeatTimestamp = now;
-        Serial.printf("[Reminder Repeat] Repeat round %d triggered (interval %d min)!\n", alertRepeatRounds, repeatIntervalMin);
-      } else {
-        // Exceeded allowed repeats -> mark as Missed, but keep the alert LED until bottle removal.
-        isAlertActive = false;
-        isBuzzerMuted = true;
-        isAlertVisualActive = true;
-        digitalWrite(PIN_BUZZER, LOW);
-        uploadIntakeLog("Missed", activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
-        Serial.println("[Reminder] Max repeats exceeded -> Marked as Missed. Alert LED remains until bottle removal.");
-      }
-    }
+  // 6. Auto-stop alert after 5 minutes -> mark as Missed
+  if (isAlertActive && (now - alertStartTimestamp >= ALERT_TIMEOUT_MS)) {
+    int schedId = activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0;
+    isAlertActive = false;
+    isAlertVisualActive = true;   // Keep LED on until bottle removal
+    buzzerBeepActive = false;
+    digitalWrite(PIN_BUZZER, LOW);
+    uploadIntakeLog("Missed", schedId);
+    Serial.println("[Reminder] 5-minute timeout -> Marked as Missed. LED remains until bottle removal.");
   }
 
   delay(10);
@@ -578,12 +576,14 @@ void triggerAlert(int scheduleIdx) {
   isAlertActive = true;
   isAlertVisualActive = true;
   isBuzzerMuted = false;
-  alertRepeatRounds = 0;
   activeScheduleIndex = scheduleIdx;
-  lastRepeatTimestamp = millis();
+  alertStartTimestamp = millis();  // Start 5-minute countdown
 
-  // Play Active Buzzer (GPIO14)
-  digitalWrite(PIN_BUZZER, HIGH);
+  // Start beep pattern (non-blocking)
+  buzzerBeepActive = true;
+  buzzerBeepStep = 0;
+  buzzerLastToggle = millis();
+  digitalWrite(PIN_BUZZER, HIGH); // First beep starts immediately
 
   // Meal Timing LED Logic:
   // Before Meal -> LED on GPIO25
@@ -596,7 +596,7 @@ void triggerAlert(int scheduleIdx) {
     digitalWrite(PIN_LED_AFTER_MEAL, HIGH);
   }
 
-  Serial.println("[ALERT TRIGGERED] Visual and Audio alarm started!");
+  Serial.println("[ALERT TRIGGERED] Beep pattern started!");
 }
 
 void stopAlert() {
@@ -604,6 +604,8 @@ void stopAlert() {
   isAlertVisualActive = false;
   isBuzzerMuted = false;
   activeScheduleIndex = -1;
+  buzzerBeepActive = false;
+  buzzerBeepStep = 0;
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
   digitalWrite(PIN_LED_AFTER_MEAL, LOW);
@@ -616,6 +618,7 @@ void checkSensors() {
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
       if (isAlertActive && !isBuzzerMuted) {
         isBuzzerMuted = true;
+        buzzerBeepActive = false;      // Stop beep pattern
         digitalWrite(PIN_BUZZER, LOW); // Stop buzzer sound, LEDs remain ON!
         Serial.println("[Button Pressed] Buzzer muted. LEDs remain ON waiting for bottle removal.");
       }
@@ -693,6 +696,55 @@ void checkSensors() {
     }
   }
   lastReedState = reedState;
+}
+
+// --------------------------------------------------------------------------------------
+// Non-blocking Buzzer Beep Pattern Handler
+// --------------------------------------------------------------------------------------
+
+/**
+ * handleBuzzerBeep()
+ * Called every loop(). Manages the beep pattern state machine:
+ * Produces BEEP_COUNT short beeps then a longer pause, repeating continuously
+ * until buzzerBeepActive is set to false.
+ *
+ * Pattern timeline (BEEP_COUNT=3, BEEP_ON=150ms, BEEP_OFF=150ms, PAUSE=600ms):
+ *  ON--OFF--ON--OFF--ON--OFF--------PAUSE--------ON--OFF--ON-- ...
+ *  150  150  150  150  150  150         600
+ */
+void handleBuzzerBeep() {
+  if (!buzzerBeepActive || isBuzzerMuted) return;
+
+  unsigned long now = millis();
+  // Total steps = BEEP_COUNT ON phases + BEEP_COUNT OFF phases = BEEP_COUNT * 2
+  // Step index:  0=ON, 1=OFF, 2=ON, 3=OFF, ... (BEEP_COUNT*2-1)=last OFF, then PAUSE
+  int totalBeepSteps = BEEP_COUNT * 2;   // e.g. 6 steps for 3 beeps
+
+  if (buzzerBeepStep < totalBeepSteps) {
+    // Beep phase
+    bool isOnPhase = (buzzerBeepStep % 2 == 0);
+    unsigned long phaseDuration = isOnPhase ? BEEP_ON_MS : BEEP_OFF_MS;
+
+    if (now - buzzerLastToggle >= phaseDuration) {
+      buzzerBeepStep++;
+      buzzerLastToggle = now;
+      if (buzzerBeepStep < totalBeepSteps) {
+        bool nextOn = (buzzerBeepStep % 2 == 0);
+        digitalWrite(PIN_BUZZER, nextOn ? HIGH : LOW);
+      } else {
+        // Finished all beeps -> enter pause
+        digitalWrite(PIN_BUZZER, LOW);
+      }
+    }
+  } else {
+    // Pause phase between bursts
+    if (now - buzzerLastToggle >= (unsigned long)(BEEP_OFF_MS + BEEP_PAUSE_MS)) {
+      // Restart burst
+      buzzerBeepStep = 0;
+      buzzerLastToggle = now;
+      digitalWrite(PIN_BUZZER, HIGH); // Start next burst
+    }
+  }
 }
 
 // --------------------------------------------------------------------------------------
