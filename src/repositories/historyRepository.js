@@ -13,9 +13,10 @@ class HistoryRepository {
 
   async getLogsByUser(userId, filters = {}) {
     let sql = `
-      SELECT l.*, d.box_name, d.location 
+      SELECT l.*, d.box_name, d.location, s.time_slot AS schedule_time_slot
       FROM medication_logs l
       JOIN devices d ON l.box_id = d.box_id
+      LEFT JOIN schedules s ON l.schedule_id = s.schedule_id
       WHERE d.user_id = ?
     `;
     const params = [userId];
@@ -58,12 +59,13 @@ class HistoryRepository {
 
   async getRecentAdminLogs(limit = 20) {
     const [rows] = await pool.query(
-      `SELECT ml.*, d.box_name, d.location, d.device_code, u.user_id, u.username, u.full_name AS caregiver_name,
+      `SELECT ml.*, d.box_name, d.location, d.device_code, s.time_slot AS schedule_time_slot, u.user_id, u.username, u.full_name AS caregiver_name,
               u.email
        FROM medication_logs ml
        JOIN devices d ON d.box_id = ml.box_id
+       LEFT JOIN schedules s ON ml.schedule_id = s.schedule_id
        LEFT JOIN users u ON u.user_id = d.user_id
-       ORDER BY ml.taken_time DESC
+       ORDER BY ml.taken_time DESC, ml.created_at DESC
        LIMIT ?`,
       [parseInt(limit, 10)]
     );

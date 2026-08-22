@@ -49,22 +49,36 @@ async function loadHistoryTable() {
     if (emptyHistory) emptyHistory.classList.add('d-none');
 
     historyTableBody.innerHTML = logs.map(log => {
-      const takenDate = new Date(log.taken_time);
+      const takenDate = new Date(log.taken_time || log.created_at);
       const dateStr = takenDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
       const timeStr = takenDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
 
+      // Scheduled time display
+      let scheduledTimeDisplay = '-';
+      if (log.scheduled_time) {
+        const schedDate = new Date(log.scheduled_time);
+        if (!isNaN(schedDate.getTime())) {
+          scheduledTimeDisplay = schedDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+        } else if (typeof log.scheduled_time === 'string' && log.scheduled_time.includes(':')) {
+          scheduledTimeDisplay = log.scheduled_time.substring(0, 5) + ' น.';
+        }
+      } else if (log.schedule_time_slot) {
+        scheduledTimeDisplay = log.schedule_time_slot.substring(0, 5) + ' น.';
+      }
+
       let statusBadge = '';
-      if (log.status === 'Taken' || log.status === 'ทานแล้ว') {
-        statusBadge = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> ทานแล้ว</span>';
-      } else if (log.status === 'Taken Early' || log.status === 'ทานก่อนเวลา') {
-        statusBadge = '<span class="badge bg-primary"><i class="bi bi-clock-history"></i> ทานก่อนเวลา</span>';
+      if (log.status === 'Taken' || log.status === 'ทานแล้ว' || log.status === 'ทานยาแล้ว') {
+        statusBadge = '<span class="badge bg-success py-2 px-3"><i class="bi bi-check-circle-fill me-1"></i> ทานยาแล้ว</span>';
+      } else if (log.status === 'Taken Early' || log.status === 'ทานก่อนเวลา' || log.status === 'ทานยาก่อนเวลา') {
+        statusBadge = '<span class="badge bg-primary py-2 px-3"><i class="bi bi-clock-history me-1"></i> ทานยาก่อนเวลา</span>';
       } else {
-        statusBadge = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> ลืมทาน</span>';
+        statusBadge = '<span class="badge bg-danger py-2 px-3"><i class="bi bi-exclamation-triangle-fill me-1"></i> ยังไม่ได้รับประทานยา</span>';
       }
 
       return `
         <tr>
           <td class="fw-bold">${dateStr}</td>
+          <td><span class="badge bg-light text-dark border"><i class="bi bi-alarm text-primary me-1"></i>${scheduledTimeDisplay}</span></td>
           <td>${timeStr}</td>
           <td><span class="badge bg-light text-dark border">${escapeHtml(log.box_name)}</span></td>
           <td class="text-primary fw-medium">${escapeHtml(log.medicine_name)}</td>

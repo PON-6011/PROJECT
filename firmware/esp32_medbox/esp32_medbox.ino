@@ -550,6 +550,9 @@ void checkScheduledReminders() {
       if (timeinfo.tm_hour == localSchedules[i].hour && timeinfo.tm_min == localSchedules[i].minute) {
         Serial.printf("[Schedule] Time matched schedule %d at %02d:%02d\n", localSchedules[i].schedule_id, timeinfo.tm_hour, timeinfo.tm_min);
         localSchedules[i].triggered_today = true;
+        if (isAlertActive && activeScheduleIndex >= 0 && activeScheduleIndex != i) {
+          uploadIntakeLog("Missed", localSchedules[activeScheduleIndex].schedule_id);
+        }
         triggerAlert(i);
         break;
       }
