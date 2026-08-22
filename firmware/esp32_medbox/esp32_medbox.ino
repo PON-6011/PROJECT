@@ -74,8 +74,8 @@ int64_t currentScheduleVersion = 0;
 bool isAlertActive = false;
 bool isAlertVisualActive = false;
 bool isBuzzerMuted = false;
-unsigned long alertStartTimestamp = 0;  // When the current alert was first triggered
-#define ALERT_TIMEOUT_MS  (5UL * 60UL * 1000UL)  // 5 minutes -> mark Missed
+int alertRepeatRounds = 0;              // Current repeat round (0 = initial alert)
+unsigned long lastRepeatTimestamp = 0;  // Timestamp of the last alert/repeat trigger
 unsigned long lastHeartbeatTimestamp = 0;
 int activeScheduleIndex = -1;
 unsigned long lastHistoryLogMillis = 0;
@@ -255,15 +255,36 @@ void loop() {
   // 5. Non-blocking Buzzer Beep Pattern
   handleBuzzerBeep();
 
-  // 6. Auto-stop alert after 5 minutes -> mark as Missed
-  if (isAlertActive && (now - alertStartTimestamp >= ALERT_TIMEOUT_MS)) {
-    int schedId = activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0;
-    isAlertActive = false;
-    isAlertVisualActive = true;   // Keep LED on until bottle removal
-    buzzerBeepActive = false;
-    digitalWrite(PIN_BUZZER, LOW);
-    uploadIntakeLog("Missed", schedId);
-    Serial.println("[Reminder] 5-minute timeout -> Marked as Missed. LED remains until bottle removal.");
+  // 6. Handle Repeat / Snooze logic based on schedule's repeat_count and repeat_interval_min
+  if (isAlertActive && activeScheduleIndex >= 0) {
+    int maxRepeats = localSchedules[activeScheduleIndex].repeat_count > 0 ? localSchedules[activeScheduleIndex].repeat_count : 3;
+    int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
+    unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
+
+    if (now - lastRepeatTimestamp >= intervalMs) {
+      if (alertRepeatRounds < maxRepeats) {
+        alertRepeatRounds++;
+        lastRepeatTimestamp = now;
+        // Re-enable buzzer alarm for this repeat round
+        isBuzzerMuted = false;
+        buzzerBeepActive = true;
+        buzzerBeepStep = 0;
+        buzzerLastToggle = now;
+        digitalWrite(PIN_BUZZER, HIGH);
+        Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
+          alertRepeatRounds, maxRepeats, intervalMin);
+      } else {
+        // Exceeded all repeat attempts -> Mark as Missed, but keep LED ON until bottle is removed
+        int schedId = localSchedules[activeScheduleIndex].schedule_id;
+        isAlertActive = false;
+        isBuzzerMuted = true;
+        buzzerBeepActive = false;
+        digitalWrite(PIN_BUZZER, LOW);
+        isAlertVisualActive = true; // LED stays ON until user removes the bottle
+        uploadIntakeLog("Missed", schedId);
+        Serial.printf("[Reminder] Max repeats (%d) completed without intake -> Marked as Missed. LED remains ON until bottle removal.\n", maxRepeats);
+      }
+    }
   }
 
   delay(10);
@@ -603,8 +624,9 @@ void triggerAlert(int scheduleIdx) {
   isAlertActive = true;
   isAlertVisualActive = true;
   isBuzzerMuted = false;
+  alertRepeatRounds = 0;
   activeScheduleIndex = scheduleIdx;
-  alertStartTimestamp = millis();  // Start fresh 5-minute countdown
+  lastRepeatTimestamp = millis(); // Initialize interval counter
 
   // Start fresh beep pattern (non-blocking)
   buzzerBeepActive = true;
@@ -623,11 +645,16 @@ void triggerAlert(int scheduleIdx) {
     digitalWrite(PIN_LED_AFTER_MEAL, HIGH);
   }
 
-  Serial.printf("[ALERT TRIGGERED] Alert started for Schedule ID: %d (%02d:%02d %s)\n",
+  int maxRepeats = localSchedules[scheduleIdx].repeat_count > 0 ? localSchedules[scheduleIdx].repeat_count : 3;
+  int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
+
+  Serial.printf("[ALERT TRIGGERED] Schedule ID: %d (%02d:%02d %s) | Repeats: %d times every %d min\n",
     localSchedules[scheduleIdx].schedule_id,
     localSchedules[scheduleIdx].hour,
     localSchedules[scheduleIdx].minute,
-    localSchedules[scheduleIdx].meal_timing);
+    localSchedules[scheduleIdx].meal_timing,
+    maxRepeats,
+    intervalMin);
 }
 
 void stopAlert() {
