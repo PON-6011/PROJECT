@@ -225,8 +225,8 @@ void loop() {
     }
   }
 
-  // 2. Telemetry Heartbeat every 2 seconds for high responsiveness and stability
-  if (now - lastHeartbeatTimestamp > 2000) {
+  // 2. Telemetry Heartbeat every 30 seconds
+  if (now - lastHeartbeatTimestamp > 30000) {
     lastHeartbeatTimestamp = now;
 
     if (WiFi.status() == WL_CONNECTED) {

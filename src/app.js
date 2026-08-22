@@ -38,6 +38,20 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
+// Rate Limiting for ESP32 Device API (heartbeat every 2s = 30 req/min, allow generous headroom)
+const esp32Limiter = rateLimit({
+  windowMs: 2 * 60 * 1000,   // 2-minute window
+  max: 120,                   // 120 requests per 2 min = 1 req/sec max (heartbeat is ~1/2s)
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limit for intake and schedule (infrequent)
+    return req.path === '/intake' || req.path === '/schedule' || req.path === '/firmware/check';
+  },
+  message: { success: false, message: 'Device heartbeat rate exceeded. Please slow down request frequency.' }
+});
+app.use('/api/esp32', esp32Limiter);
+
 // Body Parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
