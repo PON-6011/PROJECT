@@ -336,36 +336,7 @@ void sendHeartbeat() {
   if (WiFi.status() != WL_CONNECTED) return;
   HTTPClient http;
   String url = String(SERVER_URL) + "/api/esp32/heartbeat";
-
-  // Debug: URL and host resolution
-  Serial.println("[Heartbeat] POST URL: " + url);
-  auto getHostFromUrl = [](const String &u)->String{
-    String h = u;
-    if (h.startsWith("http://")) h = h.substring(7);
-    else if (h.startsWith("https://")) h = h.substring(8);
-    int s = h.indexOf('/'); if (s>=0) h = h.substring(0,s);
-    int c = h.indexOf(':'); if (c>=0) h = h.substring(0,c);
-    return h;
-  };
-  auto getPortFromUrl = [](const String &u)->uint16_t{
-    String h = u;
-    int p = 80;
-    if (h.startsWith("https://")) p = 443;
-    int idx = h.indexOf("://");
-    if (idx>=0) h = h.substring(idx+3);
-    int slash = h.indexOf('/'); if (slash>=0) h = h.substring(0, slash);
-    int colon = h.indexOf(':'); if (colon>=0) p = h.substring(colon+1).toInt();
-    return p;
-  };
-  String host = getHostFromUrl(url);
-  uint16_t port = getPortFromUrl(url);
-  IPAddress serverIp;
-  if (WiFi.hostByName(host.c_str(), serverIp)) {
-    Serial.println("[Heartbeat] Resolved host '" + host + "' -> " + serverIp.toString());
-  } else {
-    Serial.println("[Heartbeat] DNS lookup failed for host: " + host);
-  }
-
+  http.setTimeout(3000);
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-device-code", DEVICE_CODE);
@@ -412,16 +383,7 @@ void pollScheduleFromServer() {
 
   HTTPClient http;
   String url = String(SERVER_URL) + "/api/esp32/schedule?device_code=" + String(DEVICE_CODE);
-  Serial.println("[Schedule] GET URL: " + url);
-  // resolve host for debug
-  String host = url;
-  if (host.startsWith("http://")) host = host.substring(7);
-  else if (host.startsWith("https://")) host = host.substring(8);
-  int s = host.indexOf('/'); if (s>=0) host = host.substring(0,s);
-  int c = host.indexOf(':'); if (c>=0) host = host.substring(0,c);
-  IPAddress serverIp;
-  if (WiFi.hostByName(host.c_str(), serverIp)) Serial.println("[Schedule] Resolved " + host + " -> " + serverIp.toString());
-  else Serial.println("[Schedule] DNS lookup failed for " + host);
+  http.setTimeout(3000);
   http.begin(url);
 
   int httpCode = http.GET();
@@ -509,6 +471,7 @@ void uploadIntakeLog(const char* status, int scheduleId) {
 
   HTTPClient http;
   String url = String(SERVER_URL) + "/api/esp32/intake";
+  http.setTimeout(3000);
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-device-code", DEVICE_CODE);

@@ -8,6 +8,9 @@ class HistoryService {
       throw new Error('ไม่พบอุปกรณ์ที่มี Serial Number นี้');
     }
 
+    // Refresh device last_seen/online status
+    await deviceRepository.updateHeartbeat(deviceCode);
+
     const logId = await historyRepository.createLog({
       box_id: device.box_id,
       schedule_id: logData.schedule_id || null,

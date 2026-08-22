@@ -8,7 +8,7 @@ class DeviceService {
     const now = new Date();
 
     const devicesWithSchedules = await Promise.all(devices.map(async d => {
-      const isRecent = d.last_seen && (now - new Date(d.last_seen)) < 5000;
+      const isRecent = d.last_seen && (now - new Date(d.last_seen)) < 10000;
       const schedules = await scheduleRepository.findByBoxId(d.box_id);
       return {
         ...d,

@@ -10,9 +10,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     userDisplayName.innerText = user.full_name || user.username;
   }
 
-  // Load Devices on page load and setup auto refresh (every 10s)
+  // Load Devices on page load and setup auto refresh (every 3s)
   await loadDashboardDevices();
-  setInterval(loadDashboardDevices, 10000);
+  setInterval(loadDashboardDevices, 3000);
 });
 
 async function loadDashboardDevices() {
