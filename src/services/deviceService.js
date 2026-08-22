@@ -73,7 +73,8 @@ class DeviceService {
       status: 'success',
       box_id: device.box_id,
       schedule_version: device.schedule_version,
-      server_time: new Date().toISOString()
+      server_time: new Date().toISOString(),
+      server_epoch: Math.floor(Date.now() / 1000)
     };
   }
 }

@@ -330,7 +330,7 @@ void connectWiFi() {
 }
 
 void syncTimeNTP() {
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.google.com", "th.pool.ntp.org");
 }
 
 // --------------------------------------------------------------------------------------
@@ -366,11 +366,18 @@ void sendHeartbeat() {
         Serial.printf("[Heartbeat] Server schedule_version=%lld differs from local=%lld. Polling schedule...\n", srvVer, currentScheduleVersion);
         pollScheduleFromServer();
       }
-      // Optionally sync server time if provided
-      const char* srvTime = resp["server_time"] | nullptr;
-      if (srvTime) {
-        // Not setting system time here, but could be used for diagnostics
-        Serial.printf("[Heartbeat] server_time: %s\n", srvTime);
+      // Synchronize exact system clock with server
+      int64_t srvEpoch = resp["server_epoch"] | 0LL;
+      if (srvEpoch > 1700000000) {
+        time_t currentLocalSecs;
+        time(&currentLocalSecs);
+        if (abs((long)(currentLocalSecs - srvEpoch)) > 1) {
+          struct timeval tv;
+          tv.tv_sec = (time_t)srvEpoch;
+          tv.tv_usec = 0;
+          settimeofday(&tv, NULL);
+          Serial.printf("[Time] Clock precisely synced with server epoch %lld\n", srvEpoch);
+        }
       }
     } else {
       Serial.println("[Heartbeat] Failed to parse heartbeat response JSON");
@@ -440,33 +447,22 @@ void pollScheduleFromServer() {
 }
 
 void uploadIntakeLog(const char* status, int scheduleId) {
-  struct tm timeinfo;
-  bool hasTime = getLocalTime(&timeinfo);
-  int minuteOfDay = -1;
-  int dayOfYear = -1;
-  if (hasTime) {
-    minuteOfDay = timeinfo.tm_hour * 60 + timeinfo.tm_min;
-    dayOfYear = timeinfo.tm_yday;
-  }
+  // Prevent duplicate upload of the exact same schedule and status within 3 seconds (reed switch bounce)
+  static unsigned long lastUploadMillis = 0;
+  static int lastUploadScheduleId = -1;
+  static char lastUploadStatus[32] = "";
 
-  bool duplicateWithinMinute = false;
-  if (hasTime) {
-    duplicateWithinMinute = (dayOfYear == lastHistoryLogDayOfYear && minuteOfDay == lastHistoryLogMinuteOfDay);
-  } else if (lastHistoryLogMillis > 0 && millis() - lastHistoryLogMillis < 60000) {
-    duplicateWithinMinute = true;
-  }
-
-  if (duplicateWithinMinute) {
-    Serial.println("[History] Skipping duplicate intake log within the same minute.");
+  if (scheduleId == lastUploadScheduleId && 
+      strcmp(status, lastUploadStatus) == 0 && 
+      millis() - lastUploadMillis < 3000) {
+    Serial.println("[History] Skipping duplicate intake log (debounced).");
     return;
   }
 
-  lastHistoryLogMillis = millis();
-  lastHistoryScheduleId = scheduleId;
-  strncpy(lastHistoryStatus, status, sizeof(lastHistoryStatus) - 1);
-  lastHistoryStatus[sizeof(lastHistoryStatus) - 1] = '\0';
-  lastHistoryLogMinuteOfDay = minuteOfDay;
-  lastHistoryLogDayOfYear = dayOfYear;
+  lastUploadMillis = millis();
+  lastUploadScheduleId = scheduleId;
+  strncpy(lastUploadStatus, status, sizeof(lastUploadStatus) - 1);
+  lastUploadStatus[sizeof(lastUploadStatus) - 1] = '\0';
 
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[Offline Log] Action recorded locally. Will sync when Wi-Fi reconnects.");
@@ -621,12 +617,13 @@ void checkSensors() {
       int currentScheduleId = activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0;
       stopAlert();
       uploadIntakeLog("Taken", currentScheduleId);
-      Serial.println("[Reed Switch] Bottle removed during alarm -> Status: Taken");
-    } else if (isAlertVisualActive) {
-      // Alert LED remains on after buzzer has stopped (e.g. missed reminder). Clear it now.
-      stopAlert();
-      Serial.println("[Reed Switch] Bottle removed after alert -> Clearing visual alert.");
+      Serial.printf("[Reed Switch] Bottle removed during alarm -> Status: Taken (Schedule ID: %d)\n", currentScheduleId);
     } else {
+      if (isAlertVisualActive) {
+        stopAlert();
+        Serial.println("[Reed Switch] Bottle removed after alert -> Clearing visual alert.");
+      }
+
       struct tm timeinfo;
       bool hasTime = getLocalTime(&timeinfo);
       int currentMinutes = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
