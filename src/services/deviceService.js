@@ -8,7 +8,8 @@ class DeviceService {
     const now = new Date();
 
     const devicesWithSchedules = await Promise.all(devices.map(async d => {
-      const isRecent = d.last_seen && (now - new Date(d.last_seen)) < 10000;
+      // Heartbeat interval = 30s. Allow 70s threshold (2x interval + buffer for delays/retries).
+      const isRecent = d.last_seen && (now - new Date(d.last_seen)) < 70000;
       const schedules = await scheduleRepository.findByBoxId(d.box_id);
       return {
         ...d,
