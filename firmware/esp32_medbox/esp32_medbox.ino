@@ -199,17 +199,18 @@ void loop() {
   static bool wifiPreviouslyConnected = false;
   if (WiFi.status() != WL_CONNECTED) {
     if (wifiPreviouslyConnected) {
-      // lost connection
       wifiPreviouslyConnected = false;
-      Serial.println("[WiFi] Disconnected");
+      Serial.println("[WiFi] Connection lost. Attempting recovery...");
+      updateOLEDDisplay();
     }
-    if (now - lastWiFiRetry > 10000) {
+    if (now - lastWiFiRetry > 8000) {
       lastWiFiRetry = now;
-      WiFi.reconnect();
+      Serial.println("[WiFi] Reconnecting...");
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     }
   } else {
     if (!wifiPreviouslyConnected) {
-      // newly connected
       wifiPreviouslyConnected = true;
       Serial.println("[WiFi] Connected (detected in loop). Sending immediate heartbeat and polling schedule.");
       updateOLEDDisplay();
@@ -218,8 +219,8 @@ void loop() {
     }
   }
 
-  // 2. Telemetry Heartbeat & Polling every 1 second
-  if (now - lastHeartbeatTimestamp > 1000) {
+  // 2. Telemetry Heartbeat every 2 seconds for high responsiveness and stability
+  if (now - lastHeartbeatTimestamp > 2000) {
     lastHeartbeatTimestamp = now;
 
     if (WiFi.status() == WL_CONNECTED) {
@@ -310,10 +311,13 @@ void updateOLEDDisplay() {
 
 void connectWiFi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+  WiFi.setSleep(false); // Disable modem sleep to prevent WiFi connection drops
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("[WiFi] Connecting");
   int timeout = 0;
-  while (WiFi.status() != WL_CONNECTED && timeout < 20) {
+  while (WiFi.status() != WL_CONNECTED && timeout < 25) {
     delay(500);
     Serial.print(".");
     timeout++;
@@ -659,24 +663,37 @@ void checkSensors() {
         } else if (bestFutureIdx >= 0) {
           selectedIdx = bestFutureIdx;
           takenEarly = true;
+        } else {
+          // If all schedules were already triggered today, select the closest schedule overall
+          int minDiff = 1440;
+          for (int i = 0; i < scheduleCount; i++) {
+            int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
+            int diff = abs(currentMinutes - scheduleMinutes);
+            if (diff < minDiff) {
+              minDiff = diff;
+              selectedIdx = i;
+            }
+          }
+          takenEarly = false;
         }
       }
 
       if (selectedIdx >= 0) {
         localSchedules[selectedIdx].triggered_today = true;
+        int schedId = localSchedules[selectedIdx].schedule_id;
         if (takenEarly) {
-          uploadIntakeLog("Taken Early", localSchedules[selectedIdx].schedule_id);
-          Serial.println("[Reed Switch] Bottle removed before schedule -> Status: Taken Early");
+          uploadIntakeLog("Taken Early", schedId);
+          Serial.printf("[Reed Switch] Bottle removed before schedule -> Status: Taken Early (Schedule ID: %d)\n", schedId);
         } else {
-          uploadIntakeLog("Taken", localSchedules[selectedIdx].schedule_id);
-          Serial.println("[Reed Switch] Bottle removed at/after schedule -> Status: Taken");
+          uploadIntakeLog("Taken", schedId);
+          Serial.printf("[Reed Switch] Bottle removed at/after schedule -> Status: Taken (Schedule ID: %d)\n", schedId);
         }
       } else {
         static unsigned long lastEarlyLog = 0;
         if (millis() - lastEarlyLog > 10000) { // Prevent spam
           lastEarlyLog = millis();
           uploadIntakeLog("Taken Early", 0);
-          Serial.println("[Reed Switch] Bottle removed before schedule -> Status: Taken Early");
+          Serial.println("[Reed Switch] Bottle removed -> Status: Taken Early");
         }
       }
     }

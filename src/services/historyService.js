@@ -27,6 +27,32 @@ class HistoryService {
         const dd = String(now.getDate()).padStart(2, '0');
         scheduledTime = `${yyyy}-${mm}-${dd} ${schedRows[0].time_slot}`;
       }
+    } else if (!scheduledTime) {
+      // Find the closest active schedule for this box
+      const [allScheds] = await pool.query(
+        'SELECT schedule_id, time_slot, medicine_name FROM schedules WHERE box_id = ? AND is_active = 1 ORDER BY time_slot ASC',
+        [device.box_id]
+      );
+      if (allScheds.length > 0) {
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        let closestSched = allScheds[0];
+        let minDiff = 1440;
+        for (const s of allScheds) {
+          const parts = s.time_slot.split(':');
+          const sMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+          const diff = Math.abs(currentMinutes - sMin);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestSched = s;
+          }
+        }
+        scheduleId = closestSched.schedule_id;
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        scheduledTime = `${yyyy}-${mm}-${dd} ${closestSched.time_slot}`;
+      }
     }
 
     const logId = await historyRepository.createLog({

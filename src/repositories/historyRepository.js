@@ -13,7 +13,8 @@ class HistoryRepository {
 
   async getLogsByUser(userId, filters = {}) {
     let sql = `
-      SELECT l.*, d.box_name, d.location, s.time_slot AS schedule_time_slot
+      SELECT l.*, d.box_name, d.location, 
+             COALESCE(s.time_slot, (SELECT s2.time_slot FROM schedules s2 WHERE s2.box_id = l.box_id ORDER BY s2.time_slot ASC LIMIT 1)) AS schedule_time_slot
       FROM medication_logs l
       JOIN devices d ON l.box_id = d.box_id
       LEFT JOIN schedules s ON l.schedule_id = s.schedule_id
