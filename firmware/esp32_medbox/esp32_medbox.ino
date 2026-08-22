@@ -660,18 +660,6 @@ void checkSensors() {
         } else if (bestFutureIdx >= 0) {
           selectedIdx = bestFutureIdx;
           takenEarly = true;
-        } else {
-          // If all schedules were already triggered today, select the closest schedule overall
-          int minDiff = 1440;
-          for (int i = 0; i < scheduleCount; i++) {
-            int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
-            int diff = abs(currentMinutes - scheduleMinutes);
-            if (diff < minDiff) {
-              minDiff = diff;
-              selectedIdx = i;
-            }
-          }
-          takenEarly = false;
         }
       }
 
@@ -686,12 +674,7 @@ void checkSensors() {
           Serial.printf("[Reed Switch] Bottle removed at/after schedule -> Status: Taken (Schedule ID: %d)\n", schedId);
         }
       } else {
-        static unsigned long lastEarlyLog = 0;
-        if (millis() - lastEarlyLog > 10000) { // Prevent spam
-          lastEarlyLog = millis();
-          uploadIntakeLog("Taken Early", 0);
-          Serial.println("[Reed Switch] Bottle removed -> Status: Taken Early");
-        }
+        Serial.println("[Reed Switch] Bottle removed (already recorded for this time slot / today).");
       }
     }
   }

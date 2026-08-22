@@ -55,17 +55,39 @@ class HistoryService {
       }
     }
 
+    const currentStatus = logData.status || 'Taken';
+
+    // Requirement: Prevent duplicate intake logs for the same time / schedule today or within 60s
+    let duplicateQuery = 'SELECT log_id FROM medication_logs WHERE box_id = ?';
+    let dupParams = [device.box_id];
+
+    if (scheduleId && scheduleId > 0 && (currentStatus === 'Taken' || currentStatus === 'Taken Early')) {
+      // If this schedule was already logged as Taken or Taken Early today, don't record again on repeated pickups
+      duplicateQuery += ` AND schedule_id = ? AND status IN ('Taken', 'Taken Early') AND DATE(taken_time) = CURDATE()`;
+      dupParams.push(scheduleId);
+    } else {
+      // Otherwise check if a log was recorded within the last 60 seconds
+      duplicateQuery += ` AND taken_time >= NOW() - INTERVAL 1 MINUTE`;
+    }
+    duplicateQuery += ` LIMIT 1`;
+
+    const [dupRows] = await pool.query(duplicateQuery, dupParams);
+    if (dupRows.length > 0) {
+      console.log(`[History] Duplicate intake log ignored for box ${device.box_id} (schedule ${scheduleId}, status ${currentStatus})`);
+      return { success: true, log_id: dupRows[0].log_id, duplicate: true };
+    }
+
     const logId = await historyRepository.createLog({
       box_id: device.box_id,
       schedule_id: (scheduleId && scheduleId > 0) ? scheduleId : null,
       medicine_name: logData.medicine_name || device.medicine_name,
       scheduled_time: scheduledTime,
       taken_time: logData.taken_time || new Date(),
-      status: logData.status || 'Taken' // 'Taken', 'Taken Early', 'Missed'
+      status: currentStatus
     });
 
-    // Run auto-cleanup for logs older than 30 days
-    historyRepository.cleanupExpiredLogs().catch(err => console.error('[Cleanup Error]:', err.message));
+    // Requirement: Keep only the 100 most recent logs per box (per 1 device_code/box)
+    await historyRepository.enforceMaxLogsPerBox(device.box_id, 100);
 
     return { success: true, log_id: logId };
   }

@@ -38,6 +38,29 @@ class HistoryRepository {
   }
 
   /**
+   * Keep only the latest 100 logs for a specific box (per 1 box ID)
+   */
+  async enforceMaxLogsPerBox(boxId, maxLogs = 100) {
+    try {
+      await pool.query(
+        `DELETE FROM medication_logs 
+         WHERE box_id = ? 
+           AND log_id NOT IN (
+             SELECT log_id FROM (
+               SELECT log_id FROM medication_logs 
+               WHERE box_id = ? 
+               ORDER BY taken_time DESC, log_id DESC 
+               LIMIT ?
+             ) AS keeper
+           )`,
+        [boxId, boxId, maxLogs]
+      );
+    } catch (err) {
+      console.error('[Cleanup Error - Max 100 Logs Per Box]:', err.message);
+    }
+  }
+
+  /**
    * Delete medication logs older than 30 days
    */
   async cleanupExpiredLogs() {
