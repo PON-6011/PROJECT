@@ -57,7 +57,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Pre-fill repetition rules from first schedule item
       if (s.repeat_count !== undefined && s.repeat_count !== null) {
-        document.getElementById('repeat_count').value = s.repeat_count;
+        if (Number(s.repeat_count) === 0) {
+          const disabledRadio = document.getElementById('repeatTypeDisabled');
+          if (disabledRadio) disabledRadio.checked = true;
+        } else {
+          const enabledRadio = document.getElementById('repeatTypeEnabled');
+          if (enabledRadio) enabledRadio.checked = true;
+          document.getElementById('repeat_count').value = s.repeat_count;
+        }
       }
       if (s.repeat_interval_min !== undefined && s.repeat_interval_min !== null) {
         document.getElementById('repeat_interval_min').value = s.repeat_interval_min;
@@ -72,6 +79,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
     });
+
+    updateRepeatConfigVisibility();
   }
 
   function addScheduleRow(timeVal = '08:00:00', mealVal = 'before_meal') {
@@ -111,8 +120,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const repeatEnabledRadios = document.querySelectorAll('input[name="repeatEnabledType"]');
+  const repeatConfigContainer = document.getElementById('repeatConfigContainer');
   const repeatCountSelect = document.getElementById('repeat_count');
-  const repeatIntervalContainer = document.getElementById('repeatIntervalContainer');
   const repeatIntervalSelect = document.getElementById('repeat_interval_min');
 
   document.querySelectorAll('input[name="daySelectionType"]').forEach(radio => {
@@ -126,18 +136,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  function updateRepeatIntervalVisibility() {
-    if (repeatCountSelect.value === '1') {
-      repeatIntervalContainer.classList.add('d-none');
-      repeatIntervalSelect.disabled = true;
+  function updateRepeatConfigVisibility() {
+    const isEnabled = document.querySelector('input[name="repeatEnabledType"]:checked')?.value === 'enabled';
+    if (isEnabled) {
+      if (repeatConfigContainer) repeatConfigContainer.classList.remove('d-none');
+      if (repeatCountSelect) repeatCountSelect.disabled = false;
+      if (repeatIntervalSelect) repeatIntervalSelect.disabled = false;
     } else {
-      repeatIntervalContainer.classList.remove('d-none');
-      repeatIntervalSelect.disabled = false;
+      if (repeatConfigContainer) repeatConfigContainer.classList.add('d-none');
+      if (repeatCountSelect) repeatCountSelect.disabled = true;
+      if (repeatIntervalSelect) repeatIntervalSelect.disabled = true;
     }
   }
 
-  repeatCountSelect.addEventListener('change', updateRepeatIntervalVisibility);
-  updateRepeatIntervalVisibility();
+  repeatEnabledRadios.forEach(radio => {
+    radio.addEventListener('change', updateRepeatConfigVisibility);
+  });
+  updateRepeatConfigVisibility();
 
   if (editBoxForm) {
     editBoxForm.addEventListener('submit', async (e) => {
@@ -148,8 +163,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const location = document.getElementById('location').value.trim();
       const medicine_name = document.getElementById('medicine_name').value.trim();
       const medicine_image = document.getElementById('medicine_image').files[0];
-      const repeat_count = parseInt(document.getElementById('repeat_count').value, 10);
-      const repeat_interval_min = parseInt(document.getElementById('repeat_interval_min').value, 10);
+      const isRepeatEnabled = document.querySelector('input[name="repeatEnabledType"]:checked')?.value === 'enabled';
+      const repeat_count = isRepeatEnabled ? (parseInt(document.getElementById('repeat_count').value, 10) || 3) : 0;
+      const repeat_interval_min = isRepeatEnabled ? (parseInt(document.getElementById('repeat_interval_min').value, 10) || 5) : 5;
 
       const selectedDays = Array.from(document.querySelectorAll('.day-checkbox:checked')).map(cb => cb.value);
       const repeat_day = selectedDays.length === 7 ? 'Everyday' : (selectedDays.join(',') || 'Everyday');

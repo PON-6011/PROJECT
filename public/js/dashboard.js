@@ -43,10 +43,12 @@ async function loadDashboardDevices() {
       const scheduleList = (d.schedules || []).length > 0
         ? d.schedules.map(s => {
             const timeStr = s.time_slot ? s.time_slot.substring(0, 5) : '??:??';
-            const repeats = s.repeat_count != null ? `${s.repeat_count} รอบ` : '-';
+            const repeats = (s.repeat_count !== undefined && s.repeat_count !== null && Number(s.repeat_count) > 0)
+              ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-arrow-repeat"></i> ซ้ำ ${s.repeat_count} รอบ (${s.repeat_interval_min || 5} น.)</span>`
+              : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-bell-slash"></i> ไม่เตือนซ้ำ</span>`;
             return `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
-                      <span class="text-dark">${timeStr}</span>
-                      <small class="text-muted">${repeats}</small>
+                      <span class="text-dark fw-medium">${timeStr}</span>
+                      ${repeats}
                     </div>`;
           }).join('')
         : '<div class="text-center text-muted py-2">ยังไม่ตั้งค่า</div>';

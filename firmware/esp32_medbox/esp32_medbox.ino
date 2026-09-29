@@ -257,30 +257,35 @@ void loop() {
 
   // 6. Handle Repeat / Snooze logic if buzzer is not muted and bottle not yet removed
   if (isAlertActive && !isBuzzerMuted && activeScheduleIndex >= 0) {
-    int maxRepeats = localSchedules[activeScheduleIndex].repeat_count > 0 ? localSchedules[activeScheduleIndex].repeat_count : 3;
-    int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
-    unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
+    int maxRepeats = localSchedules[activeScheduleIndex].repeat_count;
+    if (maxRepeats <= 0) {
+      // Repeat is disabled (0 repeat rounds)
+      if (!buzzerBeepActive) {
+        isAlertActive = false; // Initial beep pattern completed; no repeat buzzer rounds
+        Serial.println("[Reminder] Repeat disabled (0 rounds). Buzzer cycle finished. LED remains ON until bottle removal.");
+      }
+    } else {
+      int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
+      unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
 
-    if (now - lastRepeatTimestamp >= intervalMs) {
-      if (alertRepeatRounds < maxRepeats) {
-        alertRepeatRounds++;
-        lastRepeatTimestamp = now;
-        // Ring buzzer again for this repeat round
-        buzzerBeepActive = true;
-        buzzerBeepStep = 0;
-        buzzerLastToggle = now;
-        digitalWrite(PIN_BUZZER, HIGH);
-        Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
-          alertRepeatRounds, maxRepeats, intervalMin);
-      } else {
-        // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
-        isAlertActive = false;
-        buzzerBeepActive = false;
-        digitalWrite(PIN_BUZZER, LOW);
-        // Do NOT log as Missed yet: keep isAlertVisualActive = true and activeScheduleIndex intact
-        // so that if user takes medicine later before next schedule it logs "Taken",
-        // or when next schedule arrives it logs "Missed" ("ยังไม่ได้รับประทานยา").
-        Serial.printf("[Reminder] Max repeats (%d) reached. Buzzer stopped. LED remains ON until bottle removal or next schedule.\n", maxRepeats);
+      if (now - lastRepeatTimestamp >= intervalMs) {
+        if (alertRepeatRounds < maxRepeats) {
+          alertRepeatRounds++;
+          lastRepeatTimestamp = now;
+          // Ring buzzer again for this repeat round
+          buzzerBeepActive = true;
+          buzzerBeepStep = 0;
+          buzzerLastToggle = now;
+          digitalWrite(PIN_BUZZER, HIGH);
+          Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
+            alertRepeatRounds, maxRepeats, intervalMin);
+        } else {
+          // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
+          isAlertActive = false;
+          buzzerBeepActive = false;
+          digitalWrite(PIN_BUZZER, LOW);
+          Serial.printf("[Reminder] Max repeats (%d) reached. Buzzer stopped. LED remains ON until bottle removal or next schedule.\n", maxRepeats);
+        }
       }
     }
   }
@@ -447,8 +452,8 @@ void pollScheduleFromServer() {
               strncpy(localSchedules[scheduleCount].meal_timing, "after_meal", 20);
             }
             localSchedules[scheduleCount].meal_timing[19] = '\0';
-            localSchedules[scheduleCount].repeat_count = s["repeat_count"] | 3;
-            localSchedules[scheduleCount].repeat_interval_min = s["repeat_interval_min"] | 5;
+            localSchedules[scheduleCount].repeat_count = s["repeat_count"].isNull() ? 3 : s["repeat_count"].as<int>();
+            localSchedules[scheduleCount].repeat_interval_min = s["repeat_interval_min"].isNull() ? 5 : s["repeat_interval_min"].as<int>();
             localSchedules[scheduleCount].triggered_today = false;
             scheduleCount++;
           }
@@ -649,16 +654,24 @@ void triggerAlert(int scheduleIdx) {
     digitalWrite(PIN_LED_AFTER_MEAL, HIGH);
   }
 
-  int maxRepeats = localSchedules[scheduleIdx].repeat_count > 0 ? localSchedules[scheduleIdx].repeat_count : 3;
+  int maxRepeats = localSchedules[scheduleIdx].repeat_count;
   int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
 
-  Serial.printf("[ALERT TRIGGERED] Schedule ID: %d (%02d:%02d %s) | Repeats: %d times every %d min\n",
-    localSchedules[scheduleIdx].schedule_id,
-    localSchedules[scheduleIdx].hour,
-    localSchedules[scheduleIdx].minute,
-    localSchedules[scheduleIdx].meal_timing,
-    maxRepeats,
-    intervalMin);
+  if (maxRepeats <= 0) {
+    Serial.printf("[ALERT TRIGGERED] Schedule ID: %d (%02d:%02d %s) | Repeat: Disabled (No repeat rounds)\n",
+      localSchedules[scheduleIdx].schedule_id,
+      localSchedules[scheduleIdx].hour,
+      localSchedules[scheduleIdx].minute,
+      localSchedules[scheduleIdx].meal_timing);
+  } else {
+    Serial.printf("[ALERT TRIGGERED] Schedule ID: %d (%02d:%02d %s) | Repeats: %d times every %d min\n",
+      localSchedules[scheduleIdx].schedule_id,
+      localSchedules[scheduleIdx].hour,
+      localSchedules[scheduleIdx].minute,
+      localSchedules[scheduleIdx].meal_timing,
+      maxRepeats,
+      intervalMin);
+  }
 }
 
 void stopAlert() {
@@ -865,10 +878,10 @@ void loadSchedulesFromFlash() {
     localSchedules[i].meal_timing[19] = '\0';
 
     snprintf(key, sizeof(key), "s%d_rc", i);
-    localSchedules[i].repeat_count = preferences.getInt(key, 3);
+    localSchedules[i].repeat_count = preferences.isKey(key) ? preferences.getInt(key, 3) : 3;
 
     snprintf(key, sizeof(key), "s%d_ri", i);
-    localSchedules[i].repeat_interval_min = preferences.getInt(key, 5);
+    localSchedules[i].repeat_interval_min = preferences.isKey(key) ? preferences.getInt(key, 5) : 5;
 
     localSchedules[i].triggered_today = false; // Always reset on boot
     scheduleCount++;

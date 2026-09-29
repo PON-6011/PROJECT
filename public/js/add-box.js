@@ -13,8 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Days selection toggle
   const dayRadios = document.querySelectorAll('input[name="daySelectionType"]');
   const specificDaysContainer = document.getElementById('specificDaysContainer');
+  const repeatEnabledRadios = document.querySelectorAll('input[name="repeatEnabledType"]');
+  const repeatConfigContainer = document.getElementById('repeatConfigContainer');
   const repeatCountSelect = document.getElementById('repeat_count');
-  const repeatIntervalContainer = document.getElementById('repeatIntervalContainer');
   const repeatIntervalSelect = document.getElementById('repeat_interval_min');
 
   dayRadios.forEach(radio => {
@@ -27,18 +28,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  function updateRepeatIntervalVisibility() {
-    if (repeatCountSelect.value === '1') {
-      repeatIntervalContainer.classList.add('d-none');
-      repeatIntervalSelect.disabled = true;
-    } else {
-      repeatIntervalContainer.classList.remove('d-none');
+  function updateRepeatConfigVisibility() {
+    const isEnabled = document.querySelector('input[name="repeatEnabledType"]:checked')?.value === 'enabled';
+    if (isEnabled) {
+      repeatConfigContainer.classList.remove('d-none');
+      repeatCountSelect.disabled = false;
       repeatIntervalSelect.disabled = false;
+    } else {
+      repeatConfigContainer.classList.add('d-none');
+      repeatCountSelect.disabled = true;
+      repeatIntervalSelect.disabled = true;
     }
   }
 
-  repeatCountSelect.addEventListener('change', updateRepeatIntervalVisibility);
-  updateRepeatIntervalVisibility();
+  repeatEnabledRadios.forEach(radio => {
+    radio.addEventListener('change', updateRepeatConfigVisibility);
+  });
+  updateRepeatConfigVisibility();
 
   // Step 1 -> Step 2
   if (nextStepBtn) {
@@ -104,8 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const location = document.getElementById('location').value.trim();
       const medicine_name = document.getElementById('medicine_name').value.trim();
       const medicine_image = document.getElementById('medicine_image').files[0];
-      const repeat_count = parseInt(document.getElementById('repeat_count').value, 10);
-      const repeat_interval_min = parseInt(document.getElementById('repeat_interval_min').value, 10);
+      const isRepeatEnabled = document.querySelector('input[name="repeatEnabledType"]:checked')?.value === 'enabled';
+      const repeat_count = isRepeatEnabled ? (parseInt(document.getElementById('repeat_count').value, 10) || 3) : 0;
+      const repeat_interval_min = isRepeatEnabled ? (parseInt(document.getElementById('repeat_interval_min').value, 10) || 5) : 5;
 
       // Selected repeat days
       const dayType = document.querySelector('input[name="daySelectionType"]:checked').value;

@@ -28,8 +28,8 @@ class ScheduleRepository {
             item.time_slot,
             item.meal_timing || 'before_meal',
             item.repeat_day || 'Everyday',
-            item.repeat_count || 3,
-            item.repeat_interval_min || 5
+            item.repeat_count !== undefined && item.repeat_count !== null ? Number(item.repeat_count) : 3,
+            item.repeat_interval_min !== undefined && item.repeat_interval_min !== null ? Number(item.repeat_interval_min) : 5
           ]
         );
       }
