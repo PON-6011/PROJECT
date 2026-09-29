@@ -31,7 +31,7 @@ class HistoryRepository {
       params.push(parseInt(filters.days, 10));
     }
 
-    sql += ' ORDER BY l.taken_time DESC LIMIT 100';
+    sql += ' ORDER BY COALESCE(l.scheduled_time, l.taken_time) DESC, l.log_id DESC LIMIT 100';
 
     const [rows] = await pool.query(sql, params);
     return rows;
@@ -49,7 +49,7 @@ class HistoryRepository {
              SELECT log_id FROM (
                SELECT log_id FROM medication_logs 
                WHERE box_id = ? 
-               ORDER BY taken_time DESC, log_id DESC 
+               ORDER BY COALESCE(scheduled_time, taken_time) DESC, log_id DESC 
                LIMIT ?
              ) AS keeper
            )`,
@@ -89,7 +89,7 @@ class HistoryRepository {
        JOIN devices d ON d.box_id = ml.box_id
        LEFT JOIN schedules s ON ml.schedule_id = s.schedule_id
        LEFT JOIN users u ON u.user_id = d.user_id
-       ORDER BY ml.taken_time DESC, ml.created_at DESC
+       ORDER BY COALESCE(ml.scheduled_time, ml.taken_time) DESC, ml.log_id DESC
        LIMIT ?`,
       [parseInt(limit, 10)]
     );

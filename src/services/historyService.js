@@ -15,17 +15,24 @@ class HistoryService {
     let scheduledTime = logData.scheduled_time || null;
     let scheduleId = logData.schedule_id ? parseInt(logData.schedule_id, 10) : null;
 
+    let medicineName = logData.medicine_name || null;
+
     if (scheduleId && scheduleId > 0 && !scheduledTime) {
       const [schedRows] = await pool.query(
         'SELECT time_slot, medicine_name FROM schedules WHERE schedule_id = ? LIMIT 1',
         [scheduleId]
       );
-      if (schedRows.length > 0 && schedRows[0].time_slot) {
-        const now = new Date();
-        const yyyy = now.getFullYear();
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const dd = String(now.getDate()).padStart(2, '0');
-        scheduledTime = `${yyyy}-${mm}-${dd} ${schedRows[0].time_slot}`;
+      if (schedRows.length > 0) {
+        if (schedRows[0].time_slot) {
+          const now = new Date();
+          const yyyy = now.getFullYear();
+          const mm = String(now.getMonth() + 1).padStart(2, '0');
+          const dd = String(now.getDate()).padStart(2, '0');
+          scheduledTime = `${yyyy}-${mm}-${dd} ${schedRows[0].time_slot}`;
+        }
+        if (!medicineName && schedRows[0].medicine_name) {
+          medicineName = schedRows[0].medicine_name;
+        }
       }
     } else if (!scheduledTime) {
       // Find the closest active schedule for this box
@@ -52,7 +59,14 @@ class HistoryService {
         const mm = String(now.getMonth() + 1).padStart(2, '0');
         const dd = String(now.getDate()).padStart(2, '0');
         scheduledTime = `${yyyy}-${mm}-${dd} ${closestSched.time_slot}`;
+        if (!medicineName && closestSched.medicine_name) {
+          medicineName = closestSched.medicine_name;
+        }
       }
+    }
+
+    if (!medicineName) {
+      medicineName = device.medicine_name || 'ยาทั่วไป';
     }
 
     const currentStatus = logData.status || 'Taken';
@@ -63,7 +77,7 @@ class HistoryService {
 
     if (scheduleId && scheduleId > 0 && (currentStatus === 'Taken' || currentStatus === 'Taken Early' || currentStatus === 'Missed')) {
       // Prevent repeated logs for the same schedule on the same day when it was already marked as taken / early / missed
-      duplicateQuery += ` AND schedule_id = ? AND status IN ('Taken', 'Taken Early', 'Missed') AND DATE(taken_time) = CURDATE()`;
+      duplicateQuery += ` AND schedule_id = ? AND status IN ('Taken', 'Taken Early', 'Missed') AND DATE(COALESCE(scheduled_time, taken_time)) = CURDATE()`;
       dupParams.push(scheduleId);
     } else {
       // Otherwise check if a log was recorded within the last 60 seconds
@@ -80,9 +94,9 @@ class HistoryService {
     const logId = await historyRepository.createLog({
       box_id: device.box_id,
       schedule_id: (scheduleId && scheduleId > 0) ? scheduleId : null,
-      medicine_name: logData.medicine_name || device.medicine_name,
+      medicine_name: medicineName,
       scheduled_time: scheduledTime,
-      taken_time: logData.taken_time || new Date(),
+      taken_time: logData.taken_time || (currentStatus === 'Missed' && scheduledTime ? scheduledTime : new Date()),
       status: currentStatus
     });
 

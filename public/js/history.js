@@ -45,9 +45,8 @@ async function loadHistoryTable() {
     if (emptyHistory) emptyHistory.classList.add('d-none');
 
     historyTableBody.innerHTML = logs.map(log => {
-      const takenDate = new Date(log.taken_time || log.created_at);
-      const dateStr = takenDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-      const timeStr = takenDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+      const isMissed = (log.status === 'Missed' || log.status === 'ยังไม่ได้รับประทานยา' || log.status === 'ไม่ได้ทาน' || log.status === 'ไม่ได้รับประทาน');
+      const timeStr = isMissed ? '-' : (takenDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.');
 
       // Scheduled time display
       let scheduledTimeDisplay = '-';

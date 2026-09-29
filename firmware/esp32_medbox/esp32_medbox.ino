@@ -255,8 +255,8 @@ void loop() {
   // 5. Non-blocking Buzzer Beep Pattern
   handleBuzzerBeep();
 
-  // 6. Handle Repeat / Snooze logic based on schedule's repeat_count and repeat_interval_min
-  if (isAlertActive && activeScheduleIndex >= 0) {
+  // 6. Handle Repeat / Snooze logic if buzzer is not muted and bottle not yet removed
+  if (isAlertActive && !isBuzzerMuted && activeScheduleIndex >= 0) {
     int maxRepeats = localSchedules[activeScheduleIndex].repeat_count > 0 ? localSchedules[activeScheduleIndex].repeat_count : 3;
     int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
     unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
@@ -265,8 +265,7 @@ void loop() {
       if (alertRepeatRounds < maxRepeats) {
         alertRepeatRounds++;
         lastRepeatTimestamp = now;
-        // Re-enable buzzer alarm for this repeat round
-        isBuzzerMuted = false;
+        // Ring buzzer again for this repeat round
         buzzerBeepActive = true;
         buzzerBeepStep = 0;
         buzzerLastToggle = now;
@@ -274,15 +273,14 @@ void loop() {
         Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
           alertRepeatRounds, maxRepeats, intervalMin);
       } else {
-        // Exceeded all repeat attempts -> Mark as Missed, but keep LED ON until bottle is removed
-        int schedId = localSchedules[activeScheduleIndex].schedule_id;
+        // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
         isAlertActive = false;
-        isBuzzerMuted = true;
         buzzerBeepActive = false;
         digitalWrite(PIN_BUZZER, LOW);
-        isAlertVisualActive = true; // LED stays ON until user removes the bottle
-        uploadIntakeLog("Missed", schedId);
-        Serial.printf("[Reminder] Max repeats (%d) completed without intake -> Marked as Missed. LED remains ON until bottle removal.\n", maxRepeats);
+        // Do NOT log as Missed yet: keep isAlertVisualActive = true and activeScheduleIndex intact
+        // so that if user takes medicine later before next schedule it logs "Taken",
+        // or when next schedule arrives it logs "Missed" ("ยังไม่ได้รับประทานยา").
+        Serial.printf("[Reminder] Max repeats (%d) reached. Buzzer stopped. LED remains ON until bottle removal or next schedule.\n", maxRepeats);
       }
     }
   }
@@ -571,6 +569,12 @@ void checkScheduledReminders() {
   // Reset daily trigger state once when the day changes.
   int currentDay = timeinfo.tm_yday;
   if (lastScheduleResetDayOfYear != currentDay) {
+    if ((isAlertActive || isAlertVisualActive) && activeScheduleIndex >= 0) {
+      int oldSchedId = localSchedules[activeScheduleIndex].schedule_id;
+      Serial.printf("[Schedule] Day changed. Previous schedule (ID: %d) not taken -> Marked as Missed.\n", oldSchedId);
+      uploadIntakeLog("Missed", oldSchedId);
+      stopAlert();
+    }
     for (int i = 0; i < scheduleCount; i++) {
       localSchedules[i].triggered_today = false;
     }
@@ -599,10 +603,10 @@ void checkScheduledReminders() {
 
         localSchedules[i].triggered_today = true;
 
-        // If a previous alert is still ringing or visual alert is active, conclude it as Missed
+        // If a previous alert was not taken (user pressed stop button or ignored, and never removed bottle):
         if ((isAlertActive || isAlertVisualActive) && activeScheduleIndex >= 0 && activeScheduleIndex != i) {
           int oldSchedId = localSchedules[activeScheduleIndex].schedule_id;
-          Serial.printf("[Schedule] Previous alert (Schedule ID: %d) ended as Missed due to new schedule.\n", oldSchedId);
+          Serial.printf("[Schedule] Previous alert (Schedule ID: %d) not taken -> Marked as Missed before starting new schedule.\n", oldSchedId);
           uploadIntakeLog("Missed", oldSchedId);
         }
 
@@ -670,17 +674,17 @@ void stopAlert() {
 }
 
 void checkSensors() {
-  // Push Button (GPIO19) - Mute Buzzer
+  // Push Button (GPIO19) - Stop Buzzer Sound
   if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
     delay(50); // Debounce
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
-      if (isAlertActive && !isBuzzerMuted) {
+      if ((isAlertActive || isAlertVisualActive) && !isBuzzerMuted) {
         isBuzzerMuted = true;
-        isAlertActive = true;          // Keep this reminder active until bottle is removed or next schedule arrives
-        isAlertVisualActive = true;    // Preserve the visual alert state for missed detection
-        buzzerBeepActive = false;      // Stop beep pattern only; do not clear the pending reminder
+        isAlertActive = false;          // Stop buzzer active state so repeat timers will not ring
+        buzzerBeepActive = false;      // Stop beep pattern immediately
         digitalWrite(PIN_BUZZER, LOW); // Stop buzzer sound, LEDs remain ON!
-        Serial.println("[Button Pressed] Buzzer muted. Reminder remains active until bottle removal or next schedule marks it as missed.");
+        Serial.printf("[Button Pressed] Buzzer sound stopped. LED remains ON for schedule ID %d until bottle is removed or next schedule marks it as Missed.\n",
+          activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
       }
     }
   }
