@@ -61,9 +61,9 @@ class HistoryService {
     let duplicateQuery = 'SELECT log_id FROM medication_logs WHERE box_id = ?';
     let dupParams = [device.box_id];
 
-    if (scheduleId && scheduleId > 0 && (currentStatus === 'Taken' || currentStatus === 'Taken Early')) {
-      // If this schedule was already logged as Taken or Taken Early today, don't record again on repeated pickups
-      duplicateQuery += ` AND schedule_id = ? AND status IN ('Taken', 'Taken Early') AND DATE(taken_time) = CURDATE()`;
+    if (scheduleId && scheduleId > 0 && (currentStatus === 'Taken' || currentStatus === 'Taken Early' || currentStatus === 'Missed')) {
+      // Prevent repeated logs for the same schedule on the same day when it was already marked as taken / early / missed
+      duplicateQuery += ` AND schedule_id = ? AND status IN ('Taken', 'Taken Early', 'Missed') AND DATE(taken_time) = CURDATE()`;
       dupParams.push(scheduleId);
     } else {
       // Otherwise check if a log was recorded within the last 60 seconds

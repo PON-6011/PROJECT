@@ -676,9 +676,11 @@ void checkSensors() {
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
       if (isAlertActive && !isBuzzerMuted) {
         isBuzzerMuted = true;
-        buzzerBeepActive = false;      // Stop beep pattern
+        isAlertActive = true;          // Keep this reminder active until bottle is removed or next schedule arrives
+        isAlertVisualActive = true;    // Preserve the visual alert state for missed detection
+        buzzerBeepActive = false;      // Stop beep pattern only; do not clear the pending reminder
         digitalWrite(PIN_BUZZER, LOW); // Stop buzzer sound, LEDs remain ON!
-        Serial.println("[Button Pressed] Buzzer muted. LEDs remain ON waiting for bottle removal.");
+        Serial.println("[Button Pressed] Buzzer muted. Reminder remains active until bottle removal or next schedule marks it as missed.");
       }
     }
   }
