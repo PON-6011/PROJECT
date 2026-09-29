@@ -76,6 +76,8 @@ bool isAlertVisualActive = false;
 bool isBuzzerMuted = false;
 int alertRepeatRounds = 0;              // Current repeat round (0 = initial alert)
 unsigned long lastRepeatTimestamp = 0;  // Timestamp of the last alert/repeat trigger
+unsigned long nextRepeatAtMs = 0;       // Absolute time when the next repeat should fire
+unsigned long repeatIntervalMs = 0;     // Current configured repeat interval for the active alert
 unsigned long lastHeartbeatTimestamp = 0;
 int activeScheduleIndex = -1;
 unsigned long lastHistoryLogMillis = 0;
@@ -260,37 +262,45 @@ void loop() {
   // 6. Handle Repeat / Snooze logic if bottle not yet removed
   if (isAlertActive && activeScheduleIndex >= 0) {
     int maxRepeats = localSchedules[activeScheduleIndex].repeat_count;
+    int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
+    unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
+
+    if (repeatIntervalMs != intervalMs) {
+      repeatIntervalMs = intervalMs;
+      nextRepeatAtMs = now + repeatIntervalMs;
+    }
+
     if (maxRepeats <= 0) {
       // Repeat is disabled (0 repeat rounds)
       if (!buzzerBeepActive) {
         isAlertActive = false; // Initial beep pattern completed; no repeat buzzer rounds
+        nextRepeatAtMs = 0;
+        repeatIntervalMs = 0;
         Serial.println("[Reminder] Repeat disabled (0 rounds). Buzzer cycle finished. LED remains ON until bottle removal.");
       }
-    } else {
-      int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
-      unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
-
-      if (now - lastRepeatTimestamp >= intervalMs) {
-        if (alertRepeatRounds < maxRepeats) {
-          alertRepeatRounds++;
-          lastRepeatTimestamp = now;
-          isBuzzerMuted = false; // Unmute buzzer so next repeat round sounds!
-          // Ring buzzer again for this repeat round
-          buzzerBeepActive = true;
-          buzzerBeepStep = 0;
-          buzzerBurstCount = 0;
-          buzzerLastToggle = now;
-          digitalWrite(PIN_BUZZER, HIGH);
-          Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
-            alertRepeatRounds, maxRepeats, intervalMin);
-        } else {
-          // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
-          isAlertActive = false;
-          buzzerBeepActive = false;
-          isBuzzerMuted = true;
-          digitalWrite(PIN_BUZZER, LOW);
-          Serial.printf("[Reminder] Max repeats (%d) reached. Buzzer stopped. LED remains ON until bottle removal or next schedule.\n", maxRepeats);
-        }
+    } else if (now >= nextRepeatAtMs) {
+      if (alertRepeatRounds < maxRepeats) {
+        alertRepeatRounds++;
+        lastRepeatTimestamp = now;
+        nextRepeatAtMs = now + repeatIntervalMs;
+        isBuzzerMuted = false; // Unmute buzzer so next repeat round sounds!
+        // Ring buzzer again for this repeat round
+        buzzerBeepActive = true;
+        buzzerBeepStep = 0;
+        buzzerBurstCount = 0;
+        buzzerLastToggle = now;
+        digitalWrite(PIN_BUZZER, HIGH);
+        Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
+          alertRepeatRounds, maxRepeats, intervalMin);
+      } else {
+        // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
+        isAlertActive = false;
+        buzzerBeepActive = false;
+        isBuzzerMuted = true;
+        nextRepeatAtMs = 0;
+        repeatIntervalMs = 0;
+        digitalWrite(PIN_BUZZER, LOW);
+        Serial.printf("[Reminder] Max repeats (%d) reached. Buzzer stopped. LED remains ON until bottle removal or next schedule.\n", maxRepeats);
       }
     }
   }
@@ -642,6 +652,10 @@ void triggerAlert(int scheduleIdx) {
   activeScheduleIndex = scheduleIdx;
   lastRepeatTimestamp = millis(); // Initialize interval counter
 
+  int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
+  repeatIntervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
+  nextRepeatAtMs = millis() + repeatIntervalMs;
+
   // Start fresh beep pattern (non-blocking)
   buzzerBeepActive = true;
   buzzerBeepStep = 0;
@@ -661,7 +675,6 @@ void triggerAlert(int scheduleIdx) {
   }
 
   int maxRepeats = localSchedules[scheduleIdx].repeat_count;
-  int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
 
   if (maxRepeats <= 0) {
     Serial.printf("[ALERT TRIGGERED] Schedule ID: %d (%02d:%02d %s) | Repeat: Disabled (No repeat rounds)\n",
@@ -688,6 +701,9 @@ void stopAlert() {
   buzzerBeepActive = false;
   buzzerBeepStep = 0;
   buzzerBurstCount = 0;
+  lastRepeatTimestamp = 0;
+  nextRepeatAtMs = 0;
+  repeatIntervalMs = 0;
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
   digitalWrite(PIN_LED_AFTER_MEAL, LOW);
@@ -703,6 +719,10 @@ void checkSensors() {
         buzzerBeepActive = false;      // Stop beep pattern immediately for this round
         buzzerBurstCount = 0;
         digitalWrite(PIN_BUZZER, LOW); // Stop buzzer sound, LEDs remain ON!
+        lastRepeatTimestamp = millis();
+        if (repeatIntervalMs > 0) {
+          nextRepeatAtMs = millis() + repeatIntervalMs;
+        }
         Serial.printf("[Button Pressed] Buzzer silenced for current round. LED remains ON for schedule ID %d. Next repeat will sound when interval arrives.\n",
           activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
       }
@@ -803,6 +823,10 @@ void handleBuzzerBeep() {
         // Finished all bursts for this alert notification -> silence buzzer until next repeat round
         buzzerBeepActive = false;
         digitalWrite(PIN_BUZZER, LOW);
+        lastRepeatTimestamp = millis();
+        if (repeatIntervalMs > 0) {
+          nextRepeatAtMs = lastRepeatTimestamp + repeatIntervalMs;
+        }
       } else {
         // Restart burst
         buzzerBeepStep = 0;
