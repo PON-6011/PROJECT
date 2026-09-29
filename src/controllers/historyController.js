@@ -5,6 +5,7 @@ class HistoryController {
     try {
       const filters = {
         box_id: req.query.box_id ? parseInt(req.query.box_id, 10) : undefined,
+        status: req.query.status ? req.query.status.trim() : undefined,
         days: req.query.days ? parseInt(req.query.days, 10) : undefined
       };
       const logs = await historyService.getUserHistory(req.user.userId, filters);

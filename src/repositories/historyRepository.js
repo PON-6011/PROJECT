@@ -26,12 +26,24 @@ class HistoryRepository {
       sql += ' AND l.box_id = ?';
       params.push(filters.box_id);
     }
+    if (filters.status) {
+      if (filters.status === 'Taken') {
+        sql += " AND l.status IN ('Taken', 'ทานแล้ว', 'ทานยาแล้ว', 'รับประทานแล้ว')";
+      } else if (filters.status === 'Taken Early') {
+        sql += " AND l.status IN ('Taken Early', 'ทานก่อนเวลา', 'ทานยาก่อนเวลา')";
+      } else if (filters.status === 'Missed') {
+        sql += " AND l.status IN ('Missed', 'ยังไม่ได้รับประทานยา', 'ยังไม่รับประทานยา', 'ไม่ได้ทาน', 'ไม่ได้รับประทาน', 'ยังไม่ทาน')";
+      } else {
+        sql += ' AND l.status = ?';
+        params.push(filters.status);
+      }
+    }
     if (filters.days) {
       sql += ' AND l.created_at >= NOW() - INTERVAL ? DAY';
       params.push(parseInt(filters.days, 10));
     }
 
-    sql += ' ORDER BY COALESCE(l.scheduled_time, l.taken_time) DESC, l.log_id DESC LIMIT 100';
+    sql += ' ORDER BY COALESCE(l.scheduled_time, l.taken_time, l.created_at) DESC, l.log_id DESC LIMIT 100';
 
     const [rows] = await pool.query(sql, params);
     return rows;
