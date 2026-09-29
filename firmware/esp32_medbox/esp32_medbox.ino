@@ -93,9 +93,11 @@ int lastScheduleResetDayOfYear = -1;
 #define BEEP_OFF_MS     150   // Gap between beeps
 #define BEEP_COUNT      3     // Number of beeps per burst
 #define BEEP_PAUSE_MS   600   // Pause between bursts
+#define BURSTS_PER_ALERT 10   // Number of bursts per alert notification (~16.5 sec beeping)
 bool buzzerBeepActive = false;  // true = beep pattern running
 unsigned long buzzerLastToggle = 0;
 int buzzerBeepStep = 0;         // 0..BEEP_COUNT*2-1 = on/off cycles, then pause
+int buzzerBurstCount = 0;       // Current burst count in this alert cycle
 
 // NTP Time Client Settings & Calibration
 const char* ntpServer = "pool.ntp.org";
@@ -275,6 +277,7 @@ void loop() {
           // Ring buzzer again for this repeat round
           buzzerBeepActive = true;
           buzzerBeepStep = 0;
+          buzzerBurstCount = 0;
           buzzerLastToggle = now;
           digitalWrite(PIN_BUZZER, HIGH);
           Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
@@ -640,6 +643,7 @@ void triggerAlert(int scheduleIdx) {
   // Start fresh beep pattern (non-blocking)
   buzzerBeepActive = true;
   buzzerBeepStep = 0;
+  buzzerBurstCount = 0;
   buzzerLastToggle = millis();
   digitalWrite(PIN_BUZZER, HIGH); // First beep starts immediately
 
@@ -681,6 +685,7 @@ void stopAlert() {
   activeScheduleIndex = -1;
   buzzerBeepActive = false;
   buzzerBeepStep = 0;
+  buzzerBurstCount = 0;
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_LED_BEFORE_MEAL, LOW);
   digitalWrite(PIN_LED_AFTER_MEAL, LOW);
@@ -695,6 +700,7 @@ void checkSensors() {
         isBuzzerMuted = true;
         isAlertActive = false;          // Stop buzzer active state so repeat timers will not ring
         buzzerBeepActive = false;      // Stop beep pattern immediately
+        buzzerBurstCount = 0;
         digitalWrite(PIN_BUZZER, LOW); // Stop buzzer sound, LEDs remain ON!
         Serial.printf("[Button Pressed] Buzzer sound stopped. LED remains ON for schedule ID %d until bottle is removed or next schedule marks it as Missed.\n",
           activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
@@ -791,10 +797,17 @@ void handleBuzzerBeep() {
   } else {
     // Pause phase between bursts
     if (now - buzzerLastToggle >= (unsigned long)(BEEP_OFF_MS + BEEP_PAUSE_MS)) {
-      // Restart burst
-      buzzerBeepStep = 0;
-      buzzerLastToggle = now;
-      digitalWrite(PIN_BUZZER, HIGH); // Start next burst
+      buzzerBurstCount++;
+      if (buzzerBurstCount >= BURSTS_PER_ALERT) {
+        // Finished all bursts for this alert notification -> silence buzzer until next repeat round
+        buzzerBeepActive = false;
+        digitalWrite(PIN_BUZZER, LOW);
+      } else {
+        // Restart burst
+        buzzerBeepStep = 0;
+        buzzerLastToggle = now;
+        digitalWrite(PIN_BUZZER, HIGH); // Start next burst
+      }
     }
   }
 }

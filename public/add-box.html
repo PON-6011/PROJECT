@@ -116,20 +116,23 @@
 
               <div id="repeatConfigContainer" class="row g-3 p-3 bg-white border rounded">
                 <div class="col-md-6">
-                  <label for="repeat_interval_min" class="form-label small text-muted">ระยะเวลาเตือนซ้ำทุกๆ</label>
+                  <label for="repeat_interval_min" class="form-label small text-muted">ระยะเวลาเตือนซ้ำ</label>
                   <select id="repeat_interval_min" class="form-select form-control-custom">
-                    <option value="3">3 นาที</option>
-                    <option value="5" selected>5 นาที</option>
-                    <option value="10">10 นาที</option>
+                    <option value="3">3 นาทีเตือน 1 ครั้ง</option>
+                    <option value="5" selected>5 นาทีเตือน 1 ครั้ง</option>
+                    <option value="10">10 นาทีเตือน 1 ครั้ง</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label for="repeat_count" class="form-label small text-muted">จำนวนรอบเตือนซ้ำ</label>
                   <select id="repeat_count" class="form-select form-control-custom">
-                    <option value="1">1 รอบ</option>
-                    <option value="2">2 รอบ</option>
-                    <option value="3" selected>3 รอบ</option>
+                    <option value="1">1 รอบ (แจ้งเตือนทั้งหมด 2 ครั้ง)</option>
+                    <option value="2">2 รอบ (แจ้งเตือนทั้งหมด 3 ครั้ง)</option>
+                    <option value="3" selected>3 รอบ (แจ้งเตือนทั้งหมด 4 ครั้ง)</option>
                   </select>
+                </div>
+                <div class="col-12 mt-2">
+                  <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>จำนวนรอบเตือนซ้ำ 1 รอบ = เตือนรอบแรก + เตือนซ้ำ 1 ครั้ง (รวมทั้งหมด 2 ครั้ง)</span>
                 </div>
               </div>
             </div>
