@@ -53,11 +53,8 @@ async function loadHistoryTable() {
     if (emptyHistory) emptyHistory.classList.add('d-none');
 
     historyTableBody.innerHTML = logs.map(log => {
-      // 1. Date formatting
-      const refDate = log.scheduled_time 
-        ? new Date(log.scheduled_time) 
-        : (log.taken_time ? new Date(log.taken_time) : (log.created_at ? new Date(log.created_at) : new Date()));
-      
+      // 1. Date formatting: prefer actual intake time, then creation time, and only use schedule time as a fallback.
+      const refDate = new Date(log.taken_time || log.created_at || log.scheduled_time || 0);
       const dateStr = !isNaN(refDate.getTime()) 
         ? refDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) 
         : '-';
