@@ -257,8 +257,8 @@ void loop() {
   // 5. Non-blocking Buzzer Beep Pattern
   handleBuzzerBeep();
 
-  // 6. Handle Repeat / Snooze logic if buzzer is not muted and bottle not yet removed
-  if (isAlertActive && !isBuzzerMuted && activeScheduleIndex >= 0) {
+  // 6. Handle Repeat / Snooze logic if bottle not yet removed
+  if (isAlertActive && activeScheduleIndex >= 0) {
     int maxRepeats = localSchedules[activeScheduleIndex].repeat_count;
     if (maxRepeats <= 0) {
       // Repeat is disabled (0 repeat rounds)
@@ -274,6 +274,7 @@ void loop() {
         if (alertRepeatRounds < maxRepeats) {
           alertRepeatRounds++;
           lastRepeatTimestamp = now;
+          isBuzzerMuted = false; // Unmute buzzer so next repeat round sounds!
           // Ring buzzer again for this repeat round
           buzzerBeepActive = true;
           buzzerBeepStep = 0;
@@ -286,6 +287,7 @@ void loop() {
           // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
           isAlertActive = false;
           buzzerBeepActive = false;
+          isBuzzerMuted = true;
           digitalWrite(PIN_BUZZER, LOW);
           Serial.printf("[Reminder] Max repeats (%d) reached. Buzzer stopped. LED remains ON until bottle removal or next schedule.\n", maxRepeats);
         }
@@ -692,17 +694,16 @@ void stopAlert() {
 }
 
 void checkSensors() {
-  // Push Button (GPIO19) - Stop Buzzer Sound
+  // Push Button (GPIO19) - Silence current buzzer sound (LED remains ON, repeat timer continues)
   if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
     delay(50); // Debounce
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
       if ((isAlertActive || isAlertVisualActive) && !isBuzzerMuted) {
         isBuzzerMuted = true;
-        isAlertActive = false;          // Stop buzzer active state so repeat timers will not ring
-        buzzerBeepActive = false;      // Stop beep pattern immediately
+        buzzerBeepActive = false;      // Stop beep pattern immediately for this round
         buzzerBurstCount = 0;
         digitalWrite(PIN_BUZZER, LOW); // Stop buzzer sound, LEDs remain ON!
-        Serial.printf("[Button Pressed] Buzzer sound stopped. LED remains ON for schedule ID %d until bottle is removed or next schedule marks it as Missed.\n",
+        Serial.printf("[Button Pressed] Buzzer silenced for current round. LED remains ON for schedule ID %d. Next repeat will sound when interval arrives.\n",
           activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
       }
     }
