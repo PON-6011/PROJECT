@@ -38,7 +38,11 @@ async function loadHistoryTable() {
 
   try {
     const res = await API.request(query);
-    const logs = res.data;
+    const logs = [...(res.data || [])].sort((a, b) => {
+      const aTime = new Date(a.taken_time || a.created_at || a.scheduled_time || 0).getTime();
+      const bTime = new Date(b.taken_time || b.created_at || b.scheduled_time || 0).getTime();
+      return bTime - aTime;
+    });
 
     if (!logs || logs.length === 0) {
       historyTableBody.innerHTML = '';

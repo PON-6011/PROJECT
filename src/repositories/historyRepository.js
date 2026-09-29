@@ -1,4 +1,5 @@
 const { pool } = require('../config/db');
+const { sortHistoryLogs } = require('../utils/sortHistoryLogs');
 
 class HistoryRepository {
   async createLog(logData) {
@@ -46,7 +47,7 @@ class HistoryRepository {
     sql += ' ORDER BY COALESCE(l.taken_time, l.created_at, l.scheduled_time) DESC, l.log_id DESC LIMIT 100';
 
     const [rows] = await pool.query(sql, params);
-    return rows;
+    return sortHistoryLogs(rows);
   }
 
   /**
@@ -105,7 +106,7 @@ class HistoryRepository {
        LIMIT ?`,
       [parseInt(limit, 10)]
     );
-    return rows;
+    return sortHistoryLogs(rows);
   }
 }
 
