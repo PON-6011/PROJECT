@@ -86,8 +86,6 @@ int lastHistoryScheduleId = -1;
 char lastHistoryStatus[32] = "";
 int lastHistoryLogDayOfYear = -1;
 int lastHistoryLogMinuteOfDay = -1;
-int lastReedState = LOW;
-unsigned long lastReedEventMillis = 0;
 int lastScheduleResetDayOfYear = -1;
 
 // Buzzer Beep Pattern (non-blocking)
@@ -328,8 +326,6 @@ void setupHardwarePins() {
 
   pinMode(PIN_REED_SWITCH, INPUT_PULLUP);
   pinMode(PIN_PUSH_BUTTON, INPUT_PULLUP);
-
-  lastReedState = digitalRead(PIN_REED_SWITCH);
 }
 
 void initOLED() {
@@ -935,53 +931,9 @@ void checkSensors() {
     }
   }
 
-  // Reed Switch (GPIO27) - Bottle Removal Detection
-  int reedState = digitalRead(PIN_REED_SWITCH);
-  if (reedState == HIGH && lastReedState == LOW && millis() - lastReedEventMillis > 1000) {
-    lastReedEventMillis = millis();
-    if (isAlertActive || isAlertVisualActive) {
-      // Scheduled intake completed for the active alarm
-      int currentScheduleId = activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0;
-      stopAlert();
-      uploadIntakeLog("Taken", currentScheduleId);
-      Serial.printf("[Reed Switch] Bottle removed during/after alarm -> Status: Taken (Schedule ID: %d)\n", currentScheduleId);
-    } else {
-      // Bottle removed when NO alarm is active
-      struct tm timeinfo;
-      bool hasTime = getLocalTime(&timeinfo);
-      int currentMinutes = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
-      int selectedIdx = -1;
-      bool takenEarly = false;
-
-      if (hasTime && scheduleCount > 0) {
-        int bestDiff = 1440;
-
-        // Check if there is an upcoming schedule within 30 minutes (Taken Early)
-        for (int i = 0; i < scheduleCount; i++) {
-          if (localSchedules[i].triggered_today) continue;
-          if (!isScheduleAllowedToday(localSchedules[i], timeinfo)) continue;
-          int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
-          int diff = scheduleMinutes - currentMinutes;
-          // Only count as Taken Early if within 30 minutes before schedule
-          if (diff > 0 && diff <= 30 && diff < bestDiff) {
-            bestDiff = diff;
-            selectedIdx = i;
-            takenEarly = true;
-          }
-        }
-      }
-
-      if (selectedIdx >= 0 && takenEarly) {
-        localSchedules[selectedIdx].triggered_today = true;
-        int schedId = localSchedules[selectedIdx].schedule_id;
-        uploadIntakeLog("Taken Early", schedId);
-        Serial.printf("[Reed Switch] Bottle removed early -> Status: Taken Early (Schedule ID: %d)\n", schedId);
-      } else {
-        Serial.println("[Reed Switch] Bottle removed (idle / already processed).");
-      }
-    }
-  }
-  lastReedState = reedState;
+  // Previous medication-removal detection logic was removed intentionally.
+  // The reed switch is kept wired for future implementation, but it no longer
+  // marks a schedule as 'Taken' automatically.
 }
 
 // --------------------------------------------------------------------------------------
