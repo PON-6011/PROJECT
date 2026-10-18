@@ -121,6 +121,9 @@ void sendHeartbeat();
 void checkScheduledReminders();
 bool isBeforeMealTiming(const char* timing);
 bool isScheduleAllowedToday(const ScheduleItem& item, const struct tm& timeinfo);
+bool queueOfflineIntakeLog(const char* status, int scheduleId);
+bool flushOfflineIntakeLogs();
+void compactOfflineLogQueue();
 void triggerAlert(int scheduleIdx);
 void stopAlert();
 void uploadIntakeLog(const char* status, int scheduleId);
@@ -236,10 +239,11 @@ void loop() {
   } else {
     if (!wifiPreviouslyConnected) {
       wifiPreviouslyConnected = true;
-      Serial.println("[WiFi] Connected (detected in loop). Sending immediate heartbeat and polling schedule.");
+      Serial.println("[WiFi] Connected (detected in loop). Sending immediate heartbeat, polling schedule, and retrying offline logs.");
       updateOLEDDisplay();
       sendHeartbeat();
       pollScheduleFromServer();
+      flushOfflineIntakeLogs();
     }
   }
 
@@ -497,6 +501,124 @@ void pollScheduleFromServer() {
   http.end();
 }
 
+bool queueOfflineIntakeLog(const char* status, int scheduleId) {
+  if (status == nullptr || strlen(status) == 0) {
+    return false;
+  }
+
+  preferences.begin("medbox", false);
+  int count = preferences.getInt("offline_log_count", 0);
+  if (count >= 50) {
+    compactOfflineLogQueue();
+    count = preferences.getInt("offline_log_count", 0);
+  }
+
+  StaticJsonDocument<256> doc;
+  doc["schedule_id"] = scheduleId;
+  doc["status"] = status;
+  doc["timestamp_ms"] = (unsigned long)millis();
+
+  String payload;
+  serializeJson(doc, payload);
+
+  String key = "ol_" + String(count);
+  preferences.putString(key.c_str(), payload);
+  preferences.putInt("offline_log_count", count + 1);
+  preferences.end();
+  Serial.printf("[Offline Log] Queued for retry (count=%d, schedule_id=%d, status=%s)\n", count + 1, scheduleId, status);
+  return true;
+}
+
+bool flushOfflineIntakeLogs() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return false;
+  }
+
+  preferences.begin("medbox", false);
+  int count = preferences.getInt("offline_log_count", 0);
+  if (count <= 0) {
+    preferences.end();
+    return false;
+  }
+
+  bool sentAny = false;
+
+  for (int i = 0; i < count; i++) {
+    String key = "ol_" + String(i);
+    String payload = preferences.getString(key.c_str(), "");
+    if (payload.length() == 0) {
+      continue;
+    }
+
+    DynamicJsonDocument doc(256);
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err) {
+      preferences.remove(key.c_str());
+      continue;
+    }
+
+    int scheduleId = doc["schedule_id"] | 0;
+    const char* status = doc["status"] | "Taken";
+
+    HTTPClient http;
+    String url = String(SERVER_URL) + "/api/esp32/intake";
+    http.setTimeout(3000);
+    http.begin(url);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("x-device-code", DEVICE_CODE);
+
+    StaticJsonDocument<200> outDoc;
+    outDoc["device_code"] = DEVICE_CODE;
+    outDoc["schedule_id"] = scheduleId;
+    outDoc["status"] = status;
+
+    String jsonBody;
+    serializeJson(outDoc, jsonBody);
+
+    int httpCode = http.POST(jsonBody);
+    if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
+      Serial.printf("[History] Offline log synced successfully (schedule_id=%d, status=%s)\n", scheduleId, status);
+      preferences.remove(key.c_str());
+      sentAny = true;
+    } else {
+      Serial.printf("[History] Sync retry failed for offline log, HTTP code %d\n", httpCode);
+      http.end();
+      break;
+    }
+
+    http.end();
+  }
+
+  compactOfflineLogQueue();
+  preferences.end();
+  return sentAny;
+}
+
+void compactOfflineLogQueue() {
+  preferences.begin("medbox", false);
+  int count = preferences.getInt("offline_log_count", 0);
+  int writeIndex = 0;
+
+  for (int i = 0; i < count; i++) {
+    String key = "ol_" + String(i);
+    String value = preferences.getString(key.c_str(), "");
+    if (value.length() == 0) {
+      preferences.remove(key.c_str());
+      continue;
+    }
+
+    if (writeIndex != i) {
+      preferences.putString(("ol_" + String(writeIndex)).c_str(), value);
+      preferences.remove(key.c_str());
+    }
+
+    writeIndex++;
+  }
+
+  preferences.putInt("offline_log_count", writeIndex);
+  preferences.end();
+}
+
 void uploadIntakeLog(const char* status, int scheduleId) {
   // Prevent duplicate upload of the exact same schedule and status within 3 seconds (reed switch bounce)
   static unsigned long lastUploadMillis = 0;
@@ -516,6 +638,7 @@ void uploadIntakeLog(const char* status, int scheduleId) {
   lastUploadStatus[sizeof(lastUploadStatus) - 1] = '\0';
 
   if (WiFi.status() != WL_CONNECTED) {
+    queueOfflineIntakeLog(status, scheduleId);
     Serial.println("[Offline Log] Action recorded locally. Will sync when Wi-Fi reconnects.");
     return;
   }
@@ -536,10 +659,12 @@ void uploadIntakeLog(const char* status, int scheduleId) {
   serializeJson(doc, jsonBody);
 
   int httpCode = http.POST(jsonBody);
-  if (httpCode == HTTP_CODE_OK) {
+  if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
     Serial.println("[History] Intake log sent successfully.");
   } else {
     Serial.printf("[History] Failed to upload intake log, HTTP code %d\n", httpCode);
+    queueOfflineIntakeLog(status, scheduleId);
+    Serial.println("[Offline Log] Failed live upload. Saved locally for retry.");
   }
 
   http.end();

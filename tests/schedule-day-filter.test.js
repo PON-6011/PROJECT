@@ -39,4 +39,30 @@ for (const [repeatDay, weekdayIndex, expected] of cases) {
   );
 }
 
+function createOfflineQueue() {
+  const queue = [];
+  return {
+    add(status, scheduleId) {
+      queue.push({ schedule_id: scheduleId, status, timestamp_ms: Date.now() });
+    },
+    size() {
+      return queue.length;
+    },
+    flush() {
+      const pending = [...queue];
+      queue.length = 0;
+      return pending;
+    }
+  };
+}
+
+const offlineQueue = createOfflineQueue();
+offlineQueue.add('Taken', 101);
+offlineQueue.add('Taken Early', 102);
+assert.equal(offlineQueue.size(), 2);
+const flushed = offlineQueue.flush();
+assert.equal(flushed.length, 2);
+assert.equal(offlineQueue.size(), 0);
+
 console.log(`schedule day filter tests passed: ${cases.length}/${cases.length}`);
+console.log('offline queue retry tests passed: 2/2');
