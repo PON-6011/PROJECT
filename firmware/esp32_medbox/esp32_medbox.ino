@@ -60,6 +60,7 @@ struct ScheduleItem {
   int hour;
   int minute;
   char meal_timing[20]; // "before_meal" or "after_meal"
+  char repeat_day[64]; // "Everyday" or comma-separated day list e.g. "Mon,Wed,Fri"
   int repeat_count;
   int repeat_interval_min;
   bool triggered_today;
@@ -119,6 +120,7 @@ void pollScheduleFromServer();
 void sendHeartbeat();
 void checkScheduledReminders();
 bool isBeforeMealTiming(const char* timing);
+bool isScheduleAllowedToday(const ScheduleItem& item, const struct tm& timeinfo);
 void triggerAlert(int scheduleIdx);
 void stopAlert();
 void uploadIntakeLog(const char* status, int scheduleId);
@@ -467,6 +469,9 @@ void pollScheduleFromServer() {
               strncpy(localSchedules[scheduleCount].meal_timing, "after_meal", 20);
             }
             localSchedules[scheduleCount].meal_timing[19] = '\0';
+            const char* rawRepeatDay = s["repeat_day"] | "Everyday";
+            strncpy(localSchedules[scheduleCount].repeat_day, rawRepeatDay, sizeof(localSchedules[scheduleCount].repeat_day) - 1);
+            localSchedules[scheduleCount].repeat_day[sizeof(localSchedules[scheduleCount].repeat_day) - 1] = '\0';
             localSchedules[scheduleCount].repeat_count = s["repeat_count"].isNull() ? 3 : s["repeat_count"].as<int>();
             localSchedules[scheduleCount].repeat_interval_min = s["repeat_interval_min"].isNull() ? 5 : s["repeat_interval_min"].as<int>();
             localSchedules[scheduleCount].triggered_today = false;
@@ -566,6 +571,82 @@ bool isBeforeMealTiming(const char* timing) {
   return false;
 }
 
+bool isScheduleAllowedToday(const ScheduleItem& item, const struct tm& timeinfo) {
+  if (item.repeat_day[0] == '\0') {
+    return true;
+  }
+
+  char normalized[64];
+  strncpy(normalized, item.repeat_day, sizeof(normalized) - 1);
+  normalized[sizeof(normalized) - 1] = '\0';
+
+  int start = 0;
+  while (normalized[start] && isspace((unsigned char)normalized[start])) start++;
+  int end = strlen(normalized) - 1;
+  while (end >= start && isspace((unsigned char)normalized[end])) {
+    normalized[end] = '\0';
+    end--;
+  }
+
+  if (strcmp(normalized + start, "") == 0) {
+    return true;
+  }
+
+  const char* dayList = normalized + start;
+  char dayListUpper[64];
+  strncpy(dayListUpper, dayList, sizeof(dayListUpper) - 1);
+  dayListUpper[sizeof(dayListUpper) - 1] = '\0';
+  for (char* p = dayListUpper; *p; p++) {
+    *p = toupper((unsigned char)*p);
+  }
+  if (strcmp(dayListUpper, "EVERYDAY") == 0 || strcmp(dayListUpper, "ALL") == 0 || strcmp(dayListUpper, "ALLDAYS") == 0) {
+    return true;
+  }
+
+  const char* dayNames[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  char currentDay[8];
+  strncpy(currentDay, dayNames[timeinfo.tm_wday], sizeof(currentDay) - 1);
+  currentDay[sizeof(currentDay) - 1] = '\0';
+
+  char buffer[64];
+  strncpy(buffer, dayList, sizeof(buffer) - 1);
+  buffer[sizeof(buffer) - 1] = '\0';
+
+  char* token = strtok(buffer, ",");
+  while (token != nullptr) {
+    while (*token != '\0' && isspace((unsigned char)*token)) token++;
+    char* tokenEnd = token + strlen(token) - 1;
+    while (tokenEnd >= token && isspace((unsigned char)*tokenEnd)) {
+      *tokenEnd = '\0';
+      tokenEnd--;
+    }
+
+    if (strlen(token) > 0) {
+      char upperToken[8];
+      strncpy(upperToken, token, sizeof(upperToken) - 1);
+      upperToken[sizeof(upperToken) - 1] = '\0';
+      for (char* p = upperToken; *p; p++) {
+        *p = toupper((unsigned char)*p);
+      }
+
+      char upperCurrentDay[8];
+      strncpy(upperCurrentDay, currentDay, sizeof(upperCurrentDay) - 1);
+      upperCurrentDay[sizeof(upperCurrentDay) - 1] = '\0';
+      for (char* p = upperCurrentDay; *p; p++) {
+        *p = toupper((unsigned char)*p);
+      }
+
+      if (strcmp(upperToken, upperCurrentDay) == 0) {
+        return true;
+      }
+    }
+
+    token = strtok(nullptr, ",");
+  }
+
+  return false;
+}
+
 // --------------------------------------------------------------------------------------
 // Alarm Logic & Hardware Sensors
 // --------------------------------------------------------------------------------------
@@ -607,7 +688,7 @@ void checkScheduledReminders() {
   int nowMinOfDay = timeinfo.tm_hour * 60 + timeinfo.tm_min;
 
   for (int i = 0; i < scheduleCount; i++) {
-    if (!localSchedules[i].triggered_today) {
+    if (!localSchedules[i].triggered_today && isScheduleAllowedToday(localSchedules[i], timeinfo)) {
       int schedMinOfDay = localSchedules[i].hour * 60 + localSchedules[i].minute;
       int diffMin = nowMinOfDay - schedMinOfDay;
 
@@ -753,6 +834,7 @@ void checkSensors() {
         // Check if there is an upcoming schedule within 30 minutes (Taken Early)
         for (int i = 0; i < scheduleCount; i++) {
           if (localSchedules[i].triggered_today) continue;
+          if (!isScheduleAllowedToday(localSchedules[i], timeinfo)) continue;
           int scheduleMinutes = localSchedules[i].hour * 60 + localSchedules[i].minute;
           int diff = scheduleMinutes - currentMinutes;
           // Only count as Taken Early if within 30 minutes before schedule
@@ -867,6 +949,9 @@ void saveSchedulesToFlash() {
     snprintf(key, sizeof(key), "s%d_mt", i);
     preferences.putString(key, localSchedules[i].meal_timing);
 
+    snprintf(key, sizeof(key), "s%d_rd", i);
+    preferences.putString(key, localSchedules[i].repeat_day);
+
     snprintf(key, sizeof(key), "s%d_rc", i);
     preferences.putInt(key, localSchedules[i].repeat_count);
 
@@ -914,6 +999,11 @@ void loadSchedulesFromFlash() {
     String mt = preferences.getString(key, "before_meal");
     strncpy(localSchedules[i].meal_timing, mt.c_str(), 19);
     localSchedules[i].meal_timing[19] = '\0';
+
+    snprintf(key, sizeof(key), "s%d_rd", i);
+    String rd = preferences.getString(key, "Everyday");
+    strncpy(localSchedules[i].repeat_day, rd.c_str(), sizeof(localSchedules[i].repeat_day) - 1);
+    localSchedules[i].repeat_day[sizeof(localSchedules[i].repeat_day) - 1] = '\0';
 
     snprintf(key, sizeof(key), "s%d_rc", i);
     localSchedules[i].repeat_count = preferences.isKey(key) ? preferences.getInt(key, 3) : 3;
