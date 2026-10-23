@@ -436,6 +436,12 @@ void sendHeartbeat() {
           Serial.printf("[Time] Clock calibrated to real time: %lld\n", (long long)targetEpoch);
         }
       }
+      if (WiFi.status() == WL_CONNECTED) {
+        bool queuedSynced = flushOfflineIntakeLogs();
+        if (queuedSynced) {
+          Serial.println("[Heartbeat] Offline intake queue flushed after successful heartbeat.");
+        }
+      }
     } else {
       Serial.println("[Heartbeat] Failed to parse heartbeat response JSON");
     }
