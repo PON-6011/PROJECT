@@ -80,6 +80,7 @@ unsigned long lastRepeatTimestamp = 0;  // Timestamp of the last alert/repeat tr
 unsigned long nextRepeatAtMs = 0;       // Absolute time when the next repeat should fire
 unsigned long repeatIntervalMs = 0;     // Current configured repeat interval for the active alert
 unsigned long lastHeartbeatTimestamp = 0;
+unsigned long lastOfflineSyncAttemptMs = 0;
 int activeScheduleIndex = -1;
 unsigned long lastHistoryLogMillis = 0;
 int lastHistoryScheduleId = -1;
@@ -243,6 +244,7 @@ void loop() {
       updateOLEDDisplay();
       sendHeartbeat();
       pollScheduleFromServer();
+      lastOfflineSyncAttemptMs = now;
       flushOfflineIntakeLogs();
     }
   }
@@ -253,6 +255,10 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       sendHeartbeat();
+      if (now - lastOfflineSyncAttemptMs > 15000) {
+        lastOfflineSyncAttemptMs = now;
+        flushOfflineIntakeLogs();
+      }
     }
   }
 
