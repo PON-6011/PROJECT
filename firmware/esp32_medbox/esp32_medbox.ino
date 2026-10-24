@@ -536,7 +536,16 @@ bool queueOfflineIntakeLog(const char* status, int scheduleId) {
   }
 
   JsonArray queue = queueDoc.as<JsonArray>();
-  if (!queue.isNull() && queue.size() >= 50) {
+  for (JsonVariant item : queue) {
+    int queuedScheduleId = item["schedule_id"] | 0;
+    const char* queuedStatus = item["status"] | "Taken";
+    if (queuedScheduleId == scheduleId && strcmp(queuedStatus, status) == 0) {
+      Serial.printf("[Offline Log] Duplicate queued status already exists: schedule_id=%d, status=%s\n", scheduleId, status);
+      return true;
+    }
+  }
+
+  if (queue.size() >= 50) {
     queue.remove(0);
   }
 
@@ -585,7 +594,8 @@ bool flushOfflineIntakeLogs() {
   Serial.printf("[Offline Sync] Attempting flush for %d queued log(s)...\n", queue.size());
 
   bool sentAny = false;
-  for (JsonVariant item : queue) {
+  for (int i = queue.size() - 1; i >= 0; i--) {
+    JsonVariant item = queue[i];
     int scheduleId = item["schedule_id"] | 0;
     const char* status = item["status"] | "Taken";
 
@@ -606,8 +616,9 @@ bool flushOfflineIntakeLogs() {
 
     int httpCode = http.POST(jsonBody);
     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-      Serial.printf("[History] Offline log synced successfully (schedule_id=%d, status=%s)\n", scheduleId, status);
+      queue.remove(i);
       sentAny = true;
+      Serial.printf("[History] Offline log synced successfully (schedule_id=%d, status=%s)\n", scheduleId, status);
     } else {
       Serial.printf("[History] Sync retry failed for offline log, HTTP code %d\n", httpCode);
       http.end();
@@ -617,68 +628,17 @@ bool flushOfflineIntakeLogs() {
     http.end();
   }
 
-  if (sentAny) {
-    preferences.begin("medbox", false);
-    String remainingQueue = preferences.getString("offline_queue", "[]");
-    preferences.end();
-
-    DynamicJsonDocument remainingDoc(512);
-    DeserializationError remErr = deserializeJson(remainingDoc, remainingQueue);
-    if (!remErr && remainingDoc.is<JsonArray>()) {
-      JsonArray remaining = remainingDoc.as<JsonArray>();
-      while (remaining.size() > 0) {
-        bool removed = false;
-        for (JsonVariant item : remaining) {
-          int scheduleId = item["schedule_id"] | 0;
-          const char* status = item["status"] | "Taken";
-
-          // Re-send remaining entries one by one; any successful send will be removed from the array.
-          HTTPClient http;
-          String url = String(SERVER_URL) + "/api/esp32/intake";
-          http.setTimeout(3000);
-          http.begin(url);
-          http.addHeader("Content-Type", "application/json");
-          http.addHeader("x-device-code", DEVICE_CODE);
-
-          StaticJsonDocument<200> outDoc;
-          outDoc["device_code"] = DEVICE_CODE;
-          outDoc["schedule_id"] = scheduleId;
-          outDoc["status"] = status;
-
-          String jsonBody;
-          serializeJson(outDoc, jsonBody);
-
-          int httpCode = http.POST(jsonBody);
-          http.end();
-          if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-            remaining.remove(remaining[0].as<JsonVariant>());
-            removed = true;
-            Serial.printf("[History] Offline log synced successfully (schedule_id=%d, status=%s)\n", scheduleId, status);
-            break;
-          }
-        }
-        if (!removed) {
-          break;
-        }
-      }
-
-      preferences.begin("medbox", false);
-      if (remaining.size() == 0) {
-        preferences.remove("offline_queue");
-      } else {
-        String updatedQueue;
-        serializeJson(remainingDoc, updatedQueue);
-        preferences.putString("offline_queue", updatedQueue);
-      }
-      preferences.end();
-    }
+  preferences.begin("medbox", false);
+  if (queue.size() == 0) {
+    preferences.remove("offline_queue");
+  } else {
+    String updatedQueue;
+    serializeJson(queueDoc, updatedQueue);
+    preferences.putString("offline_queue", updatedQueue);
   }
+  preferences.end();
 
-  if (!sentAny) {
-    return false;
-  }
-
-  return true;
+  return sentAny;
 }
 
 void compactOfflineLogQueue() {
