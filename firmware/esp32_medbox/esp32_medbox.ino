@@ -291,24 +291,8 @@ void loop() {
       }
     }
 
-    if (!isBuzzerMuted && buzzerBeepActive && (now - alertSoundStartedAtMs >= ALERT_SOUND_WINDOW_MS)) {
-      buzzerBeepActive = false;
-      isBuzzerMuted = true;
-      digitalWrite(PIN_BUZZER, LOW);
-
-      // Initial scheduled alert is not counted as a repeat. Only follow-up rounds are counted.
-      if (maxRepeats > 0 && alertRepeatRounds < maxRepeats) {
-        nextRepeatAtMs = now + repeatIntervalMs;
-        Serial.printf("[Reminder] 3-minute buzzer window ended. Next follow-up repeat scheduled in %d min.\n", intervalMin);
-      } else {
-        nextRepeatAtMs = 0;
-        repeatIntervalMs = 0;
-        Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
-      }
-    }
-
     if (maxRepeats <= 0) {
-      if (!buzzerBeepActive) {
+      if (!buzzerBeepActive && isAlertActive) {
         nextRepeatAtMs = 0;
         repeatIntervalMs = 0;
       }
@@ -1074,9 +1058,14 @@ void handleBuzzerBeep() {
     buzzerBeepActive = false;
     isBuzzerMuted = true;
     digitalWrite(PIN_BUZZER, LOW);
-    nextRepeatAtMs = 0;
-    repeatIntervalMs = 0;
-    Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
+    if (localSchedules[activeScheduleIndex].repeat_count > 0 && activeScheduleIndex >= 0) {
+      nextRepeatAtMs = millis() + repeatIntervalMs;
+      Serial.printf("[Reminder] 3-minute buzzer window ended. Next repeat is scheduled for %lu ms later.\n", repeatIntervalMs);
+    } else {
+      nextRepeatAtMs = 0;
+      repeatIntervalMs = 0;
+      Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
+    }
     return;
   }
 
