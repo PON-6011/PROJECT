@@ -70,6 +70,7 @@ class HistoryService {
     }
 
     const currentStatus = logData.status || 'Taken';
+    const actualTakenTime = logData.taken_time ? new Date(logData.taken_time) : new Date();
 
     // Requirement: Prevent duplicate intake logs for the same time / schedule today or within 60s
     let duplicateQuery = 'SELECT log_id FROM medication_logs WHERE box_id = ?';
@@ -96,7 +97,7 @@ class HistoryService {
       schedule_id: (scheduleId && scheduleId > 0) ? scheduleId : null,
       medicine_name: medicineName,
       scheduled_time: scheduledTime,
-      taken_time: logData.taken_time || (currentStatus === 'Missed' && scheduledTime ? scheduledTime : new Date()),
+      taken_time: actualTakenTime,
       status: currentStatus
     });
 

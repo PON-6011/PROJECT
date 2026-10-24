@@ -518,6 +518,18 @@ void pollScheduleFromServer() {
   http.end();
 }
 
+String getLocalDateTimeString() {
+  time_t nowEpoch = time(nullptr);
+  struct tm timeinfo;
+  if (localtime_r(&nowEpoch, &timeinfo) == nullptr) {
+    return String();
+  }
+
+  char buffer[32];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(buffer);
+}
+
 bool queueOfflineIntakeLog(const char* status, int scheduleId) {
   if (status == nullptr || strlen(status) == 0) {
     return false;
@@ -549,9 +561,11 @@ bool queueOfflineIntakeLog(const char* status, int scheduleId) {
     queue.remove(0);
   }
 
+  String takenTime = getLocalDateTimeString();
   JsonObject item = queue.createNestedObject();
   item["schedule_id"] = scheduleId;
   item["status"] = status;
+  item["taken_time"] = takenTime;
   item["timestamp_ms"] = (unsigned long)millis();
 
   String payload;
@@ -606,10 +620,13 @@ bool flushOfflineIntakeLogs() {
     http.addHeader("Content-Type", "application/json");
     http.addHeader("x-device-code", DEVICE_CODE);
 
+    String takenTime = item["taken_time"] | getLocalDateTimeString();
+
     StaticJsonDocument<200> outDoc;
     outDoc["device_code"] = DEVICE_CODE;
     outDoc["schedule_id"] = scheduleId;
     outDoc["status"] = status;
+    outDoc["taken_time"] = takenTime;
 
     String jsonBody;
     serializeJson(outDoc, jsonBody);
@@ -682,10 +699,13 @@ void uploadIntakeLog(const char* status, int scheduleId) {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-device-code", DEVICE_CODE);
 
+  String takenTime = getLocalDateTimeString();
+
   StaticJsonDocument<200> doc;
   doc["device_code"] = DEVICE_CODE;
   doc["schedule_id"] = scheduleId;
   doc["status"] = status; // "Taken" or "Taken Early" or "Missed"
+  doc["taken_time"] = takenTime;
 
   String jsonBody;
   serializeJson(doc, jsonBody);
