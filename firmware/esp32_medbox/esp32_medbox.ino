@@ -924,18 +924,18 @@ void triggerAlert(int scheduleIdx) {
   alertRepeatRounds = 0;
   activeScheduleIndex = scheduleIdx;
   alertSoundStartedAtMs = millis();
-  lastRepeatTimestamp = millis(); // Initialize interval counter
+  lastRepeatTimestamp = millis();
 
   int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
   repeatIntervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
   nextRepeatAtMs = 0;
 
-  // Start fresh beep pattern (non-blocking)
+  // Always start the first alert buzzer immediately. The repeat timer starts only after the first 3-minute window ends.
   buzzerBeepActive = true;
   buzzerBeepStep = 0;
   buzzerBurstCount = 0;
   buzzerLastToggle = millis();
-  digitalWrite(PIN_BUZZER, HIGH); // First beep starts immediately
+  digitalWrite(PIN_BUZZER, HIGH);
 
   // Meal Timing LED Logic:
   // Before Meal -> LED on GPIO25
@@ -990,9 +990,10 @@ void checkSensors() {
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
       if ((isAlertActive || isAlertVisualActive) && !isBuzzerMuted) {
         isBuzzerMuted = true;
-        buzzerBeepActive = false;      // Stop current sound immediately, but keep LED lit until bottle is removed
+        buzzerBeepActive = false;
         buzzerBurstCount = 0;
-        digitalWrite(PIN_BUZZER, LOW); // Silence buzzer only; LED stays ON
+        buzzerBeepStep = 0;
+        digitalWrite(PIN_BUZZER, LOW);
         lastRepeatTimestamp = millis();
         if (repeatIntervalMs > 0) {
           nextRepeatAtMs = millis() + repeatIntervalMs;
