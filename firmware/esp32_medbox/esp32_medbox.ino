@@ -280,38 +280,44 @@ void loop() {
 
   // 6. Handle Repeat / Snooze logic if bottle not yet removed
   if (isAlertActive && activeScheduleIndex >= 0) {
-    if (!isBuzzerMuted && buzzerBeepActive && (millis() - alertSoundStartedAtMs >= ALERT_SOUND_WINDOW_MS)) {
-      buzzerBeepActive = false;
-      isBuzzerMuted = true;
-      digitalWrite(PIN_BUZZER, LOW);
-      nextRepeatAtMs = 0;
-      repeatIntervalMs = 0;
-      Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
-    }
-
     int maxRepeats = localSchedules[activeScheduleIndex].repeat_count;
     int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
     unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
 
     if (repeatIntervalMs != intervalMs) {
       repeatIntervalMs = intervalMs;
-      nextRepeatAtMs = now + repeatIntervalMs;
+      if (nextRepeatAtMs == 0) {
+        nextRepeatAtMs = now + repeatIntervalMs;
+      }
+    }
+
+    if (!isBuzzerMuted && buzzerBeepActive && (now - alertSoundStartedAtMs >= ALERT_SOUND_WINDOW_MS)) {
+      buzzerBeepActive = false;
+      isBuzzerMuted = true;
+      digitalWrite(PIN_BUZZER, LOW);
+
+      if (maxRepeats > 0 && alertRepeatRounds < maxRepeats) {
+        nextRepeatAtMs = now + repeatIntervalMs;
+        Serial.printf("[Reminder] 3-minute buzzer window ended. Next repeat scheduled in %d min.\n", intervalMin);
+      } else {
+        nextRepeatAtMs = 0;
+        repeatIntervalMs = 0;
+        Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
+      }
     }
 
     if (maxRepeats <= 0) {
-      // No repeat rounds configured. Keep LED lit and do not clear the alert
-      // just because the buzzer stopped after the 3-minute sound window.
       if (!buzzerBeepActive) {
         nextRepeatAtMs = 0;
         repeatIntervalMs = 0;
       }
-    } else if (nextRepeatAtMs > 0 && now >= nextRepeatAtMs) {
+    } else if (nextRepeatAtMs > 0 && now >= nextRepeatAtMs && !buzzerBeepActive) {
       if (alertRepeatRounds < maxRepeats) {
         alertRepeatRounds++;
         lastRepeatTimestamp = now;
         nextRepeatAtMs = now + repeatIntervalMs;
-        isBuzzerMuted = false; // Unmute buzzer so next repeat round sounds!
-        // Ring buzzer again for this repeat round
+        isBuzzerMuted = false;
+        alertSoundStartedAtMs = now;
         buzzerBeepActive = true;
         buzzerBeepStep = 0;
         buzzerBurstCount = 0;
@@ -320,7 +326,6 @@ void loop() {
         Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
           alertRepeatRounds, maxRepeats, intervalMin);
       } else {
-        // Keep LED lit, but stop the buzzer when repeats are exhausted.
         buzzerBeepActive = false;
         isBuzzerMuted = true;
         nextRepeatAtMs = 0;
@@ -922,7 +927,7 @@ void triggerAlert(int scheduleIdx) {
 
   int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
   repeatIntervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
-  nextRepeatAtMs = millis() + repeatIntervalMs;
+  nextRepeatAtMs = 0;
 
   // Start fresh beep pattern (non-blocking)
   buzzerBeepActive = true;
