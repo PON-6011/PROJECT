@@ -524,25 +524,35 @@ bool queueOfflineIntakeLog(const char* status, int scheduleId) {
   }
 
   preferences.begin("medbox", false);
-  int count = preferences.getInt("offline_log_count", 0);
-  if (count >= 50) {
-    compactOfflineLogQueue();
-    count = preferences.getInt("offline_log_count", 0);
+  String queueJson = preferences.getString("offline_queue", "[]");
+  preferences.end();
+
+  DynamicJsonDocument queueDoc(512);
+  DeserializationError err = deserializeJson(queueDoc, queueJson);
+  if (err || !queueDoc.is<JsonArray>()) {
+    queueDoc.clear();
+    JsonArray arr = queueDoc.to<JsonArray>();
+    (void)arr;
   }
 
-  StaticJsonDocument<256> doc;
-  doc["schedule_id"] = scheduleId;
-  doc["status"] = status;
-  doc["timestamp_ms"] = (unsigned long)millis();
+  JsonArray queue = queueDoc.as<JsonArray>();
+  if (!queue.isNull() && queue.size() >= 50) {
+    queue.remove(0);
+  }
+
+  JsonObject item = queue.createNestedObject();
+  item["schedule_id"] = scheduleId;
+  item["status"] = status;
+  item["timestamp_ms"] = (unsigned long)millis();
 
   String payload;
-  serializeJson(doc, payload);
+  serializeJson(queueDoc, payload);
 
-  String key = "ol_" + String(count);
-  preferences.putString(key.c_str(), payload);
-  preferences.putInt("offline_log_count", count + 1);
+  preferences.begin("medbox", false);
+  preferences.putString("offline_queue", payload);
   preferences.end();
-  Serial.printf("[Offline Log] Queued for retry (count=%d, schedule_id=%d, status=%s)\n", count + 1, scheduleId, status);
+
+  Serial.printf("[Offline Log] Queued for retry (count=%d, schedule_id=%d, status=%s)\n", queue.size(), scheduleId, status);
   return true;
 }
 
@@ -553,32 +563,31 @@ bool flushOfflineIntakeLogs() {
   }
 
   preferences.begin("medbox", false);
-  int count = preferences.getInt("offline_log_count", 0);
-  if (count <= 0) {
-    preferences.end();
+  String queueJson = preferences.getString("offline_queue", "[]");
+  preferences.end();
+
+  if (queueJson == "[]" || queueJson.length() == 0) {
     Serial.println("[Offline Sync] No queued intake logs to flush.");
     return false;
   }
 
-  Serial.printf("[Offline Sync] Attempting flush for %d queued log(s)...\n", count);
+  DynamicJsonDocument queueDoc(512);
+  DeserializationError err = deserializeJson(queueDoc, queueJson);
+  if (err || !queueDoc.is<JsonArray>()) {
+    Serial.println("[Offline Sync] Offline queue was invalid. Clearing stale queue.");
+    preferences.begin("medbox", false);
+    preferences.remove("offline_queue");
+    preferences.end();
+    return false;
+  }
+
+  JsonArray queue = queueDoc.as<JsonArray>();
+  Serial.printf("[Offline Sync] Attempting flush for %d queued log(s)...\n", queue.size());
+
   bool sentAny = false;
-
-  for (int i = 0; i < count; i++) {
-    String key = "ol_" + String(i);
-    String payload = preferences.getString(key.c_str(), "");
-    if (payload.length() == 0) {
-      continue;
-    }
-
-    DynamicJsonDocument doc(256);
-    DeserializationError err = deserializeJson(doc, payload);
-    if (err) {
-      preferences.remove(key.c_str());
-      continue;
-    }
-
-    int scheduleId = doc["schedule_id"] | 0;
-    const char* status = doc["status"] | "Taken";
+  for (JsonVariant item : queue) {
+    int scheduleId = item["schedule_id"] | 0;
+    const char* status = item["status"] | "Taken";
 
     HTTPClient http;
     String url = String(SERVER_URL) + "/api/esp32/intake";
@@ -598,7 +607,6 @@ bool flushOfflineIntakeLogs() {
     int httpCode = http.POST(jsonBody);
     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
       Serial.printf("[History] Offline log synced successfully (schedule_id=%d, status=%s)\n", scheduleId, status);
-      preferences.remove(key.c_str());
       sentAny = true;
     } else {
       Serial.printf("[History] Sync retry failed for offline log, HTTP code %d\n", httpCode);
@@ -609,33 +617,77 @@ bool flushOfflineIntakeLogs() {
     http.end();
   }
 
-  compactOfflineLogQueue();
-  preferences.end();
-  return sentAny;
+  if (sentAny) {
+    preferences.begin("medbox", false);
+    String remainingQueue = preferences.getString("offline_queue", "[]");
+    preferences.end();
+
+    DynamicJsonDocument remainingDoc(512);
+    DeserializationError remErr = deserializeJson(remainingDoc, remainingQueue);
+    if (!remErr && remainingDoc.is<JsonArray>()) {
+      JsonArray remaining = remainingDoc.as<JsonArray>();
+      while (remaining.size() > 0) {
+        bool removed = false;
+        for (JsonVariant item : remaining) {
+          int scheduleId = item["schedule_id"] | 0;
+          const char* status = item["status"] | "Taken";
+
+          // Re-send remaining entries one by one; any successful send will be removed from the array.
+          HTTPClient http;
+          String url = String(SERVER_URL) + "/api/esp32/intake";
+          http.setTimeout(3000);
+          http.begin(url);
+          http.addHeader("Content-Type", "application/json");
+          http.addHeader("x-device-code", DEVICE_CODE);
+
+          StaticJsonDocument<200> outDoc;
+          outDoc["device_code"] = DEVICE_CODE;
+          outDoc["schedule_id"] = scheduleId;
+          outDoc["status"] = status;
+
+          String jsonBody;
+          serializeJson(outDoc, jsonBody);
+
+          int httpCode = http.POST(jsonBody);
+          http.end();
+          if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
+            remaining.remove(remaining[0].as<JsonVariant>());
+            removed = true;
+            Serial.printf("[History] Offline log synced successfully (schedule_id=%d, status=%s)\n", scheduleId, status);
+            break;
+          }
+        }
+        if (!removed) {
+          break;
+        }
+      }
+
+      preferences.begin("medbox", false);
+      if (remaining.size() == 0) {
+        preferences.remove("offline_queue");
+      } else {
+        String updatedQueue;
+        serializeJson(remainingDoc, updatedQueue);
+        preferences.putString("offline_queue", updatedQueue);
+      }
+      preferences.end();
+    }
+  }
+
+  if (!sentAny) {
+    return false;
+  }
+
+  return true;
 }
 
 void compactOfflineLogQueue() {
   preferences.begin("medbox", false);
-  int count = preferences.getInt("offline_log_count", 0);
-  int writeIndex = 0;
-
-  for (int i = 0; i < count; i++) {
+  preferences.remove("offline_log_count");
+  for (int i = 0; i < 50; i++) {
     String key = "ol_" + String(i);
-    String value = preferences.getString(key.c_str(), "");
-    if (value.length() == 0) {
-      preferences.remove(key.c_str());
-      continue;
-    }
-
-    if (writeIndex != i) {
-      preferences.putString(("ol_" + String(writeIndex)).c_str(), value);
-      preferences.remove(key.c_str());
-    }
-
-    writeIndex++;
+    preferences.remove(key.c_str());
   }
-
-  preferences.putInt("offline_log_count", writeIndex);
   preferences.end();
 }
 
