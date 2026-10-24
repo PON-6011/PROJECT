@@ -1074,12 +1074,9 @@ void handleBuzzerBeep() {
   }
 
   unsigned long now = millis();
-  // Total steps = BEEP_COUNT ON phases + BEEP_COUNT OFF phases = BEEP_COUNT * 2
-  // Step index:  0=ON, 1=OFF, 2=ON, 3=OFF, ... (BEEP_COUNT*2-1)=last OFF, then PAUSE
-  int totalBeepSteps = BEEP_COUNT * 2;   // e.g. 6 steps for 3 beeps
+  int totalBeepSteps = BEEP_COUNT * 2;
 
   if (buzzerBeepStep < totalBeepSteps) {
-    // Beep phase
     bool isOnPhase = (buzzerBeepStep % 2 == 0);
     unsigned long phaseDuration = isOnPhase ? BEEP_ON_MS : BEEP_OFF_MS;
 
@@ -1090,28 +1087,15 @@ void handleBuzzerBeep() {
         bool nextOn = (buzzerBeepStep % 2 == 0);
         digitalWrite(PIN_BUZZER, nextOn ? HIGH : LOW);
       } else {
-        // Finished all beeps -> enter pause
         digitalWrite(PIN_BUZZER, LOW);
       }
     }
   } else {
-    // Pause phase between bursts
     if (now - buzzerLastToggle >= (unsigned long)(BEEP_OFF_MS + BEEP_PAUSE_MS)) {
       buzzerBurstCount++;
-      if (buzzerBurstCount >= BURSTS_PER_ALERT) {
-        // Finished all bursts for this alert notification -> silence buzzer until next repeat round
-        buzzerBeepActive = false;
-        digitalWrite(PIN_BUZZER, LOW);
-        lastRepeatTimestamp = millis();
-        if (repeatIntervalMs > 0) {
-          nextRepeatAtMs = lastRepeatTimestamp + repeatIntervalMs;
-        }
-      } else {
-        // Restart burst
-        buzzerBeepStep = 0;
-        buzzerLastToggle = now;
-        digitalWrite(PIN_BUZZER, HIGH); // Start next burst
-      }
+      buzzerBeepStep = 0;
+      buzzerLastToggle = now;
+      digitalWrite(PIN_BUZZER, HIGH);
     }
   }
 }
