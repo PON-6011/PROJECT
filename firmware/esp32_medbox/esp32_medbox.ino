@@ -98,10 +98,12 @@ int lastScheduleResetDayOfYear = -1;
 #define BEEP_COUNT      3     // Number of beeps per burst
 #define BEEP_PAUSE_MS   600   // Pause between bursts
 #define BURSTS_PER_ALERT 10   // Number of bursts per alert notification (~16.5 sec beeping)
+#define ALERT_SOUND_WINDOW_MS 180000UL // 3 minutes of buzzer sound before auto-stop, while LED stays on
 bool buzzerBeepActive = false;  // true = beep pattern running
 unsigned long buzzerLastToggle = 0;
 int buzzerBeepStep = 0;         // 0..BEEP_COUNT*2-1 = on/off cycles, then pause
 int buzzerBurstCount = 0;       // Current burst count in this alert cycle
+unsigned long alertSoundStartedAtMs = 0;
 
 // NTP Time Client Settings & Calibration
 const char* ntpServer = "pool.ntp.org";
@@ -278,6 +280,15 @@ void loop() {
 
   // 6. Handle Repeat / Snooze logic if bottle not yet removed
   if (isAlertActive && activeScheduleIndex >= 0) {
+    if (!isBuzzerMuted && buzzerBeepActive && (millis() - alertSoundStartedAtMs >= ALERT_SOUND_WINDOW_MS)) {
+      buzzerBeepActive = false;
+      isBuzzerMuted = true;
+      digitalWrite(PIN_BUZZER, LOW);
+      nextRepeatAtMs = 0;
+      repeatIntervalMs = 0;
+      Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
+    }
+
     int maxRepeats = localSchedules[activeScheduleIndex].repeat_count;
     int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
     unsigned long intervalMs = (unsigned long)intervalMin * 60UL * 1000UL;
@@ -288,14 +299,13 @@ void loop() {
     }
 
     if (maxRepeats <= 0) {
-      // Repeat is disabled (0 repeat rounds)
+      // No repeat rounds configured. Keep LED lit and do not clear the alert
+      // just because the buzzer stopped after the 3-minute sound window.
       if (!buzzerBeepActive) {
-        isAlertActive = false; // Initial beep pattern completed; no repeat buzzer rounds
         nextRepeatAtMs = 0;
         repeatIntervalMs = 0;
-        Serial.println("[Reminder] Repeat disabled (0 rounds). Buzzer cycle finished. LED remains ON until bottle removal.");
       }
-    } else if (now >= nextRepeatAtMs) {
+    } else if (nextRepeatAtMs > 0 && now >= nextRepeatAtMs) {
       if (alertRepeatRounds < maxRepeats) {
         alertRepeatRounds++;
         lastRepeatTimestamp = now;
@@ -310,8 +320,7 @@ void loop() {
         Serial.printf("[Reminder Repeat] Round %d of %d triggered (interval: %d min). Buzzer ringing!\n",
           alertRepeatRounds, maxRepeats, intervalMin);
       } else {
-        // Exceeded maximum repeat attempts without intake -> stop buzzer to avoid hardware stress
-        isAlertActive = false;
+        // Keep LED lit, but stop the buzzer when repeats are exhausted.
         buzzerBeepActive = false;
         isBuzzerMuted = true;
         nextRepeatAtMs = 0;
@@ -908,6 +917,7 @@ void triggerAlert(int scheduleIdx) {
   isBuzzerMuted = false;
   alertRepeatRounds = 0;
   activeScheduleIndex = scheduleIdx;
+  alertSoundStartedAtMs = millis();
   lastRepeatTimestamp = millis(); // Initialize interval counter
 
   int intervalMin = localSchedules[scheduleIdx].repeat_interval_min > 0 ? localSchedules[scheduleIdx].repeat_interval_min : 5;
@@ -1052,6 +1062,16 @@ void checkSensors() {
  */
 void handleBuzzerBeep() {
   if (!buzzerBeepActive || isBuzzerMuted) return;
+
+  if (millis() - alertSoundStartedAtMs >= ALERT_SOUND_WINDOW_MS) {
+    buzzerBeepActive = false;
+    isBuzzerMuted = true;
+    digitalWrite(PIN_BUZZER, LOW);
+    nextRepeatAtMs = 0;
+    repeatIntervalMs = 0;
+    Serial.println("[Reminder] 3-minute buzzer window ended. LED remains ON until bottle removal.");
+    return;
+  }
 
   unsigned long now = millis();
   // Total steps = BEEP_COUNT ON phases + BEEP_COUNT OFF phases = BEEP_COUNT * 2
