@@ -548,6 +548,7 @@ bool queueOfflineIntakeLog(const char* status, int scheduleId) {
 
 bool flushOfflineIntakeLogs() {
   if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[Offline Sync] Skipped flush because WiFi is not connected.");
     return false;
   }
 
@@ -555,9 +556,11 @@ bool flushOfflineIntakeLogs() {
   int count = preferences.getInt("offline_log_count", 0);
   if (count <= 0) {
     preferences.end();
+    Serial.println("[Offline Sync] No queued intake logs to flush.");
     return false;
   }
 
+  Serial.printf("[Offline Sync] Attempting flush for %d queued log(s)...\n", count);
   bool sentAny = false;
 
   for (int i = 0; i < count; i++) {
