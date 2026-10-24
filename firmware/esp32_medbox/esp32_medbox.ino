@@ -255,11 +255,16 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       sendHeartbeat();
-      if (now - lastOfflineSyncAttemptMs > 15000) {
+      if (now - lastOfflineSyncAttemptMs > 5000) {
         lastOfflineSyncAttemptMs = now;
         flushOfflineIntakeLogs();
       }
     }
+  }
+
+  if (WiFi.status() == WL_CONNECTED && now - lastOfflineSyncAttemptMs > 5000) {
+    lastOfflineSyncAttemptMs = now;
+    flushOfflineIntakeLogs();
   }
 
   // 3. Time Check & Local Schedule Execution
