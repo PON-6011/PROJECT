@@ -1000,6 +1000,7 @@ void checkSensors() {
     delay(50); // Debounce
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
       wakeOLEDForDuration(OLED_ACTIVE_MS);
+
       if ((isAlertActive || isAlertVisualActive) && !isBuzzerMuted) {
         isBuzzerMuted = true;
         buzzerBeepActive = false;
@@ -1012,7 +1013,10 @@ void checkSensors() {
         }
         Serial.printf("[Button Pressed] Buzzer silenced. LED remains ON for schedule ID %d until bottle is removed.\n",
           activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
+      } else {
+        Serial.println("[Button Pressed] Display wake-up requested. Local OLED status is active even without server.");
       }
+
       updateOLEDDisplay();
     }
   }
