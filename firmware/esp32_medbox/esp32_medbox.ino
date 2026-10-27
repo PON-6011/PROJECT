@@ -99,11 +99,14 @@ int lastScheduleResetDayOfYear = -1;
 #define BEEP_PAUSE_MS   600   // Pause between bursts
 #define BURSTS_PER_ALERT 10   // Number of bursts per alert notification (~16.5 sec beeping)
 #define ALERT_SOUND_WINDOW_MS 180000UL // 3 minutes of buzzer sound before auto-stop, while LED stays on
+#define OLED_ACTIVE_MS 20000UL // Keep OLED on for 20 seconds after button press or connectivity events to save battery
 bool buzzerBeepActive = false;  // true = beep pattern running
 unsigned long buzzerLastToggle = 0;
 int buzzerBeepStep = 0;         // 0..BEEP_COUNT*2-1 = on/off cycles, then pause
 int buzzerBurstCount = 0;       // Current burst count in this alert cycle
 unsigned long alertSoundStartedAtMs = 0;
+unsigned long oledWakeUntilMs = 0;
+bool oledPowered = true;
 
 // NTP Time Client Settings & Calibration
 const char* ntpServer = "pool.ntp.org";
@@ -122,6 +125,8 @@ void syncTimeNTP();
 void pollScheduleFromServer();
 void sendHeartbeat();
 void checkScheduledReminders();
+void wakeOLEDForDuration(unsigned long durationMs = OLED_ACTIVE_MS);
+void updateOLEDPowerState();
 bool isBeforeMealTiming(const char* timing);
 bool isScheduleAllowedToday(const ScheduleItem& item, const struct tm& timeinfo);
 bool queueOfflineIntakeLog(const char* status, int scheduleId);
@@ -171,7 +176,8 @@ void setup() {
   checkFactoryResetButton();
   initDeviceCode();
   
-  // Render OLED display
+  // Render OLED display briefly at boot
+  wakeOLEDForDuration(OLED_ACTIVE_MS);
   updateOLEDDisplay();
 
   // Load cached schedule from Flash (works offline before WiFi connects)
@@ -231,6 +237,7 @@ void loop() {
     if (wifiPreviouslyConnected) {
       wifiPreviouslyConnected = false;
       Serial.println("[WiFi] Connection lost. Attempting recovery...");
+      wakeOLEDForDuration(OLED_ACTIVE_MS);
       updateOLEDDisplay();
     }
     if (now - lastWiFiRetry > 8000) {
@@ -243,6 +250,7 @@ void loop() {
     if (!wifiPreviouslyConnected) {
       wifiPreviouslyConnected = true;
       Serial.println("[WiFi] Connected (detected in loop). Sending immediate heartbeat, polling schedule, and retrying offline logs.");
+      wakeOLEDForDuration(OLED_ACTIVE_MS);
       updateOLEDDisplay();
       sendHeartbeat();
       pollScheduleFromServer();
@@ -275,10 +283,13 @@ void loop() {
   // 4. Sensor Reading (Button & Reed Switch)
   checkSensors();
 
-  // 5. Non-blocking Buzzer Beep Pattern
+  // 5. Update OLED power management
+  updateOLEDPowerState();
+
+  // 6. Non-blocking Buzzer Beep Pattern
   handleBuzzerBeep();
 
-  // 6. Handle Repeat / Snooze logic if bottle not yet removed
+  // 7. Handle Repeat / Snooze logic if bottle not yet removed
   if (isAlertActive && activeScheduleIndex >= 0) {
     int maxRepeats = localSchedules[activeScheduleIndex].repeat_count;
     int intervalMin = localSchedules[activeScheduleIndex].repeat_interval_min > 0 ? localSchedules[activeScheduleIndex].repeat_interval_min : 5;
@@ -356,7 +367,21 @@ void initOLED() {
 /**
  * OLED Display: Shows Device Code and connection status only.
  */
+void wakeOLEDForDuration(unsigned long durationMs) {
+  oledWakeUntilMs = millis() + durationMs;
+  oledPowered = true;
+  display.ssd1306_command(SSD1306_DISPLAYON);
+}
+
+void updateOLEDPowerState() {
+  if (millis() >= oledWakeUntilMs && oledPowered) {
+    display.ssd1306_command(SSD1306_DISPLAYOFF);
+    oledPowered = false;
+  }
+}
+
 void updateOLEDDisplay() {
+  wakeOLEDForDuration(OLED_ACTIVE_MS);
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);
@@ -920,6 +945,8 @@ void triggerAlert(int scheduleIdx) {
   buzzerBurstCount = 0;
   buzzerLastToggle = millis();
   digitalWrite(PIN_BUZZER, HIGH);
+  wakeOLEDForDuration(OLED_ACTIVE_MS);
+  updateOLEDDisplay();
 
   // Meal Timing LED Logic:
   // Before Meal -> LED on GPIO25
@@ -972,6 +999,7 @@ void checkSensors() {
   if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
     delay(50); // Debounce
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
+      wakeOLEDForDuration(OLED_ACTIVE_MS);
       if ((isAlertActive || isAlertVisualActive) && !isBuzzerMuted) {
         isBuzzerMuted = true;
         buzzerBeepActive = false;
@@ -985,6 +1013,7 @@ void checkSensors() {
         Serial.printf("[Button Pressed] Buzzer silenced. LED remains ON for schedule ID %d until bottle is removed.\n",
           activeScheduleIndex >= 0 ? localSchedules[activeScheduleIndex].schedule_id : 0);
       }
+      updateOLEDDisplay();
     }
   }
 
