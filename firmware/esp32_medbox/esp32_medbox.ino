@@ -381,7 +381,13 @@ void updateOLEDPowerState() {
 }
 
 void updateOLEDDisplay() {
-  wakeOLEDForDuration(OLED_ACTIVE_MS);
+  // Force the OLED on before drawing content so the button wake works even with no server.
+  if (!oledPowered) {
+    oledPowered = true;
+  }
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  oledWakeUntilMs = millis() + OLED_ACTIVE_MS;
+
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);
@@ -999,7 +1005,9 @@ void checkSensors() {
   if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
     delay(50); // Debounce
     if (digitalRead(PIN_PUSH_BUTTON) == LOW) {
+      // Always wake the display locally, regardless of WiFi/server status.
       wakeOLEDForDuration(OLED_ACTIVE_MS);
+      display.ssd1306_command(SSD1306_DISPLAYON);
 
       if ((isAlertActive || isAlertVisualActive) && !isBuzzerMuted) {
         isBuzzerMuted = true;
