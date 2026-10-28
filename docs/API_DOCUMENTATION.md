@@ -15,7 +15,7 @@
 - `PUT /api/auth/profile` - อัปเดตข้อมูลผู้ใช้ / เปลี่ยนรหัสผ่าน
 
 ### 1.2 Devices (Medication Boxes)
-- `GET /api/devices` - ดึงรายการกล่องยาของผู้ใช้ทั้งหมด พร้อมสถานะ Online/Offline, แบตเตอรี่ และเวลาถัดไป
+- `GET /api/devices` - ดึงรายการกล่องยาของผู้ใช้ทั้งหมด พร้อมสถานะ Online/Offline และเวลาถัดไป
 - `POST /api/devices/verify` - ยืนยัน Serial Number และผูกอุปกรณ์กับบัญชีผู้ใช้
 - `PUT /api/devices/:id` - แก้ไขข้อมูลกล่องยา (ชื่อกล่อง, สถานที่, ชื่อยา, อัปโหลดรูปภาพ)
 - `DELETE /api/devices/:id` - ลบกล่องยาออกจากระบบ
@@ -26,7 +26,6 @@
 
 ### 1.4 History & Telemetry
 - `GET /api/history` - ดึงประวัติการรับประทานยา (รองรับตัวกรอง `box_id` และ `days`)
-- `GET /api/history/battery/:boxId` - ดึงประวัติระดับแบตเตอรี่ย้อนหลัง
 
 ### 1.5 Audit Logs
 - `GET /api/audit` - ดึงบันทึกประวัติการใช้งานระบบ (Login, Create Device, Edit Schedule, Profile Changes)
@@ -42,7 +41,6 @@
   ```json
   {
     "device_code": "BOX-CEB123",
-    "battery_level": 85,
     "firmware_version": "v1.0.0"
   }
   ```
