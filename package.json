@@ -1,7 +1,7 @@
 {
-  "name": "iot-medication-reminder-box",
+  "name": "medbox-iot-medication-reminder",
   "version": "1.0.0",
-  "description": "IoT Medication Reminder Box System via Web Application",
+  "description": "MedBox: IoT medication reminder box system with ESP32, web dashboard, and MariaDB backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -15,9 +15,12 @@
     "iot",
     "esp32",
     "medication-reminder",
+    "healthcare",
     "express",
     "mariadb",
-    "bootstrap"
+    "bootstrap",
+    "arduino",
+    "smart-device"
   ],
   "author": "Antigravity Engineering",
   "license": "MIT",

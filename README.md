@@ -1,102 +1,182 @@
-# กล่องแจ้งเตือนการรับประทานยาและระบบตั้งเวลาผ่านเว็บแอปพลิเคชัน
-## IoT Medication Alert Boxes and Scheduling System via Web Application
+# MedBox: IoT Medication Reminder Box System
+## Medication Reminder Box with ESP32 + Web Dashboard
 
-พัฒนาขึ้นเพื่อการศึกษาตามหลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์ คณะวิศวกรรมศาสตร์ มหาวิทยาลัยนราธิวาสราชนครินทร์ (2569)
+ระบบแจ้งเตือนการรับประทานยาด้วยกล่องอัจฉริยะที่ผสาน ESP32, เว็บแอปพลิเคชัน และฐานข้อมูล MariaDB เพื่อช่วยติดตามเวลาและสถานะการรับประทานยาอย่างต่อเนื่องสำหรับผู้ดูแลและผู้ป่วย
 
----
-
-## 🌟 ฟีเจอร์หลักของระบบ (System Features)
-
-- 🔐 **ระบบบัญชีผู้ใช้และความปลอดภัย**: สมัครสมาชิก, เข้าสู่ระบบ, JWT Token, การเข้ารหัสรหัสผ่านด้วย bcrypt, Role-based Protection, Rate Limiting และ Helmet Security
-- 📱 **การผูกและยืนยันอุปกรณ์ (Device Pairing)**: ตรวจสอบ Serial Number ประจำเครื่อง ESP32 (เช่น `BOX-CEB123`) เพื่อผูกกล่องยากับผู้ใช้อย่างถาวร
-- ⏰ **การตั้งเวลาเตือนซ้ำและช่วงเวลารับประทาน**:
-  - กำหนดเวลาเตือนได้ 1 - 4 ช่วงเวลาต่อวัน
-  - กำหนดช่วงเวลาก่อนอาหาร (**ไฟ LED GPIO25**) หรือ หลังอาหาร (**ไฟ LED GPIO32**)
-  - เมื่อถึงเวลาเตือน ไฟ LED ที่ตรงกับช่วงเวลาจะติดพร้อมเสียง Buzzer
-  - กดปุ่มเพื่อหยุดเสียง แต่ไฟ LED ยังติดจนกว่าจะยกขวดยาออก (แม่เหล็กหลุด)
-  - ถ้ากดหยุดเสียงแต่ไม่ยกขวดยา จะแจ้งเตือนซ้ำตามจำนวนรอบและช่วงเวลาที่ตั้งไว้ในเว็บ
-  - กำหนดรอบเตือนซ้ำ (1-3 รอบ) และช่วงเวลาเว้นระยะการเตือนซ้ำ (3-10 นาที)
-  - กำหนดวันในสัปดาห์ (ทุกวัน หรือ ระบุวัน)
-- 📡 **การติดตามสถานะอุปกรณ์ (Live Telemetry)**:
-  - ESP32 ส่ง Heartbeat ทุก 30 วินาที
-  - แสดงสถานะ **ออนไลน์/ออฟไลน์** แบบเรียลไทม์บนแดชบอร์ด
-- 📊 **ประวัติการรับประทานยา (Medication History)**:
-  - บันทึกสถานะการหยิบยา (`Taken` - ทานแล้ว, `Taken Early` - ทานก่อนเวลา, `Missed` - ลืมทาน)
-  - จัดเก็บประวัติย้อนหลัง 30 วัน พร้อมระบบลบข้อมูลหมดอายุอัตโนมัติ
-- 📜 **Audit Log**: บันทึกทุกกิจกรรมสำคัญของระบบ (เข้าสู่ระบบ, เพิ่ม/แก้ไข/ลบ กล่องยา, เปลี่ยนรหัสผ่าน)
-- 📶 **รองรับการทำงานแบบ Local Offline Sync**: ESP32 ทำงานต่อได้ปกติแม้ Wi-Fi หลุด และทำการซิงก์ข้อมูลกับเซิร์ฟเวอร์โดยอัตโนมัติเมื่อ Wi-Fi กลับมาเชื่อมต่อ
+พัฒนาขึ้นเพื่อการศึกษาและใช้งานจริงในโครงการระบบ IoT สำหรับการจัดการยาแบบอัตโนมัติ
 
 ---
 
-## 🛠️ เทคโนโลยีที่ใช้ (Tech Stack)
+## ✅ ภาพรวมของระบบ
+
+ระบบนี้ประกอบด้วย 3 ส่วนหลัก ได้แก่:
+
+- Web Application สำหรับผู้ดูแลและผู้ดูแลระบบ
+- ESP32 Firmware สำหรับกล่องยาและเซ็นเซอร์
+- MariaDB Database สำหรับจัดเก็บข้อมูลตารางเวลา, ประวัติการรับประทานยา, อุปกรณ์และ Log
+
+ผู้ใช้งานสามารถ:
+- ลงทะเบียน / เข้าสู่ระบบ
+- ผูกกล่องยา ESP32 กับผู้ใช้แบบยืนยัน Serial Number
+- กำหนดตารางเวลาแจ้งเตือนก่อนหรือหลังอาหาร
+- ตรวจสอบสถานะออนไลน์/ออฟไลน์ของอุปกรณ์แบบเรียลไทม์
+- ดูประวัติการรับประทานยาและบันทึกแบตเตอรี่
+- จัดการผู้ใช้งานและติดตาม Audit Log ในหน้าของ Admin
+
+---
+
+## 🌟 ฟีเจอร์หลักที่ใช้งานได้จริง
+
+- 🔐 Authentication & Authorization
+  - สมัครสมาชิกและเข้าสู่ระบบ
+  - JWT Token-based authentication
+  - Password hashing ด้วย bcryptjs
+  - Role-based access control สำหรับ Caregiver และ Admin
+  - Security middleware: Helmet, CORS, Rate Limiter
+
+- 📱 Device Pairing & Verification
+  - ยืนยัน Device Code หรือ Serial Number ของ ESP32
+  - ผูกกล่องยาเข้ากับบัญชีผู้ใช้ด้วยอุปกรณ์จริง
+  - บันทึกสถานะออนไลน์/ออฟไลน์จาก heartbeat
+
+- ⏰ Medication Schedule Management
+  - กำหนดเวลาแจ้งเตือนได้หลายช่วงต่อวัน
+  - เลือกโหมดก่อนอาหารหรือหลังอาหาร
+  - ตั้งค่ารอบเตือนซ้ำและช่วงเวลาห่างระหว่างการเตือน
+  - รองรับการกำหนดวันในสัปดาห์หรือทำซ้ำทุกวัน
+
+- 📟 ESP32 Smart Reminder Logic
+  - LED และ buzzer ทำงานตามเวลาที่กำหนด
+  - Reed switch ตรวจสอบการหยิบยาออกจากกล่อง
+  - ปุ่มกดหยุดเสียงเตือนแบบชั่วคราวแล้วให้ LED ยังคงติดจนกว่าจะยกขวดยาออก
+  - ระบบคำนึงถึงสถานะ Taken, Taken Early และ Missed
+
+- 📊 History & Monitoring
+  - บันทึกประวัติการรับประทานยาตามตารางเวลา
+  - จัดแสดงประวัติย้อนหลังและประวัติแบตเตอรี่
+  - ดูข้อมูลกล่องยาใน dashboard และ device monitor
+
+- 🛡️ Admin Features
+  - Dashboard ภาพรวมผู้ใช้, กล่องยา, สถิติการใช้งาน
+  - ดูประวัติการทำงานแบบรวมศูนย์และ Audit Log
+  - ปิดใช้งานผู้ใช้หรือยกเลิกผูกอุปกรณ์ได้จากหน้า Admin
+  - ดูข้อมูลอุปกรณ์ทั้งหมดในระบบ
+
+---
+
+## 🧩 หน้าเว็บที่มีในโปรเจกต์
+
+- Login page
+- Register page
+- Dashboard
+- Add box
+- Edit box
+- History
+- Profile
+- Verify device
+- Device monitor
+- Admin dashboard
+
+---
+
+## 🛠️ เทคโนโลยีที่ใช้
 
 ### Frontend
-- **HTML5 & CSS3** (Vanilla CSS Theme)
-- **Bootstrap 5** (Responsive Layout)
-- **Vanilla JavaScript (ES6)** & **Fetch API**
+- HTML5, CSS3
+- Bootstrap 5
+- Vanilla JavaScript
+- Fetch API
 
 ### Backend
-- **Node.js** & **Express.js** (MVC + Repository Pattern)
-- **MariaDB / MySQL** (Database Engine)
-- **JWT (JSON Web Token)** & **bcryptjs** (Authentication)
-- **Multer** (File Upload)
-- **Helmet, CORS, Express Validator, Rate Limiter**
+- Node.js
+- Express.js
+- MariaDB / MySQL
+- JWT and bcryptjs
+- Multer
+- Helmet, CORS, express-validator, rate-limit
 
-### Firmware (ESP32)
-- **C++ (Arduino IDE)**
-- **Adafruit SSD1306 OLED**
-- **HTTP Client & ArduinoJson**
+### Firmware
+- ESP32 Arduino / C++
+- OLED SSD1306
+- HTTP client and ArduinoJson
 
 ---
 
-## 🔌 ผังการต่อพินฮาร์ดแวร์ ESP32 (Hardware Pinout Mapping)
+## 🔌 ESP32 Hardware Pin Mapping
 
-| GPIO Pin | อุปกรณ์ (Hardware Component) | หน้าที่การทำงาน |
+| GPIO Pin | อุปกรณ์ | หน้าที่ |
 | :--- | :--- | :--- |
-| **GPIO14** | Active Buzzer | ส่งสัญญาณเสียงเตือนเมื่อถึงเวลาทานยา |
-| **GPIO25** | LED ก่อนอาหาร | ไฟแสดงสถานะ "ก่อนอาหาร" (Before Meal) — ติดเมื่อถึงเวลาเตือน ดับเมื่อยกขวดยาออก |
-| **GPIO32** | LED หลังอาหาร | ไฟแสดงสถานะ "หลังอาหาร" (After Meal) — ติดเมื่อถึงเวลาเตือน ดับเมื่อยกขวดยาออก |
-| **GPIO27** | Reed Switch Sensor | เซนเซอร์ตรวจจับการหยิบขวดยาออกจากตำแหน่ง |
-| **GPIO19** | Push Button | ปุ่มกดสำหรับหยุดเสียงเตือน Buzzer (ไฟ LED ยังคงติดอยู่จนกว่าจะยกขวดยา) |
-| **GPIO21** | OLED SDA | สายข้อมูลจอแสดงผล OLED |
-| **GPIO22** | OLED SCL | สายสัญญาณนาฬิกาจอแสดงผล OLED (แสดง Device Code และสถานะ WiFi) |
+| GPIO14 | Active Buzzer | ส่งเสียงเตือน |
+| GPIO25 | LED ก่อนอาหาร | สถานะก่อนอาหาร |
+| GPIO32 | LED หลังอาหาร | สถานะหลังอาหาร |
+| GPIO27 | Reed Switch | ตรวจจับการหยิบยาออก |
+| GPIO19 | Push Button | หยุด buzzer ชั่วคราว |
+| GPIO21 | OLED SDA | ข้อมูลจอ OLED |
+| GPIO22 | OLED SCL | สัญญาณ Clock ของ OLED |
 
 ---
 
-## 🚀 ขั้นตอนการเริ่มต้นใช้งานโปรเจกต์ (Quick Start)
+## 🚀 วิธีเริ่มต้นใช้งาน
 
-### 1. ติดตั้ง Dependencies และสร้างฐานข้อมูล
+### 1. ติดตั้ง dependencies
 ```bash
-# 1. ติดตั้ง Node.js Modules
 npm install
+```
 
-# 2. นำเข้าไฟล์ SQL Schema เข้าสู่ MariaDB
+### 2. สร้างฐานข้อมูล
+```bash
 mysql -u root -p < sql/schema.sql
 ```
 
-### 2. เริ่มต้นรันระบบ (Run Application)
+### 3. ตั้งค่า environment
+ตรวจสอบไฟล์ `.env` หรือค่าการตั้งค่าฐานข้อมูลในโค้ดให้ตรงกับสภาพแวดล้อมของคุณ
+
+### 4. เริ่มต้นเซิร์ฟเวอร์
 ```bash
-# เริ่มต้นรัน Web Server
 npm start
 ```
 
-### 3. ลิงก์สำหรับเข้าชมเว็บแอปพลิเคชัน
-เปิดเบราว์เซอร์แล้วเข้าใช้งานได้ทันทีที่:
-👉 **[http://localhost:3000](http://localhost:3000)**
+หรือรันแบบ development:
+```bash
+npm run dev
+```
+
+### 5. เปิดใช้งานในเบราว์เซอร์
+```text
+http://localhost:3000
+```
 
 ---
 
-## 👤 บัญชีผู้ใช้สำหรับทดสอบ (Demo User Accounts)
+## 👤 บัญชีทดสอบ
 
 | บทบาท | Username | Password |
 | :--- | :--- | :--- |
-| **ผู้ดูแลผู้ป่วย (Caregiver)** | `PON` | `123456` |
-| **ผู้ดูแลระบบ (Admin)** | `admin` | `12345` |
+| Caregiver | PON | 123456 |
+| Admin | admin | 12345 |
 
 ---
 
-## 📄 เอกสารเพิ่มเติม (Documentation Links)
+## 📘 เอกสารประกอบ
 
-- 📖 [คู่มือการติดตั้ง (INSTALLATION.md)](docs/INSTALLATION.md)
-- 🔌 [รายละเอียด REST API (API_DOCUMENTATION.md)](docs/API_DOCUMENTATION.md)
-- 📁 [โครงสร้างโฟลเดอร์ (FOLDER_STRUCTURE.md)](docs/FOLDER_STRUCTURE.md)
+- [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
+- [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md)
+- [README_DEVICE.md](README_DEVICE.md)
+
+---
+
+## 📌 หมายเหตุการใช้งาน
+
+- ESP32 จะส่ง heartbeat ต่อเนื่องเพื่ออัปเดตสถานะออนไลน์/ออฟไลน์
+- ระบบรองรับการอัปเดตตารางเวลาให้ ESP32 โหลดข้อมูลใหม่ทันทีเมื่อมีการเปลี่ยนแปลง
+- ภาพรวมและรายงานต่าง ๆ ถูกเก็บไว้ในฐานข้อมูลเพื่ออำนวยความสะดวกสำหรับการจัดการในระดับผู้ดูแลระบบ
+
+---
+
+## 🏷️ Repository Info
+
+Project Name: MedBox
+Type: IoT + Healthcare + Web Application
+Platform: ESP32 + Node.js + MariaDB
+Status: Active development / working prototype
