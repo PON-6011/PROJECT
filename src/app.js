@@ -21,7 +21,10 @@ app.set('trust proxy', 1);
 
 // Security Middlewares
 app.use(helmet({
-  contentSecurityPolicy: false // Allow loading Bootstrap, Google Fonts, and inline scripts
+  contentSecurityPolicy: false, // Allow loading Bootstrap, Google Fonts, and inline scripts
+  crossOriginOpenerPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  originAgentCluster: false
 }));
 app.use(cors({
   origin: (origin, callback) => {
