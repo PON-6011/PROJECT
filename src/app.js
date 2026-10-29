@@ -17,15 +17,30 @@ const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 // Security Middlewares
 app.use(helmet({
   contentSecurityPolicy: false // Allow loading Bootstrap, Google Fonts, and inline scripts
 }));
 app.use(cors({
-  origin: env.corsOrigin,
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const allowedOrigins = env.corsOrigin || [];
+    const isAllowed = allowedOrigins.includes(origin) || allowedOrigins.includes('*');
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-device-code']
 }));
 app.use(morgan('dev'));
 

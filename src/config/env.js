@@ -4,7 +4,7 @@ const path = require('path');
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const parseOrigins = () => {
-  const raw = process.env.CORS_ORIGIN || '*';
+  const raw = process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
   return raw
     .split(',')
     .map(origin => origin.trim())
@@ -14,7 +14,7 @@ const parseOrigins = () => {
 module.exports = {
   port: Number(process.env.PORT) || 3000,
   host: process.env.HOST || '0.0.0.0',
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv: process.env.NODE_ENV || 'production',
   db: {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT, 10) || 3306,
